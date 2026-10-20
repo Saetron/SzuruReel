@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  szuru-reel:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: szuru-reel:latest
+    container_name: szuru-reel
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      # Optional: Preconfigure your Szurubooru instance connection
+      - SZURU_URL=http://localhost:8080
+      - SZURU_USER=
+      - SZURU_TOKEN=
+      - PORT=8080
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
