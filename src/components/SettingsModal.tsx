@@ -37,6 +37,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   } = useSzuru();
 
   const [instanceUrl, setInstanceUrl] = useState(config.instanceUrl);
+  const [mediaUrl, setMediaUrl] = useState(config.mediaUrl || '');
   const [useProxy, setUseProxy] = useState(config.useProxy);
   const [autoPlaySound, setAutoPlaySound] = useState(config.autoPlaySound);
   const [defaultSafety, setDefaultSafety] = useState<PostSafety | 'all'>(config.defaultSafety);
@@ -44,6 +45,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
   useEffect(() => {
     setInstanceUrl(config.instanceUrl);
+    setMediaUrl(config.mediaUrl || '');
     setUseProxy(config.useProxy);
     setAutoPlaySound(config.autoPlaySound);
     setDefaultSafety(config.defaultSafety);
@@ -55,6 +57,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     e.preventDefault();
     updateConfig({
       instanceUrl: instanceUrl.trim(),
+      mediaUrl: mediaUrl.trim(),
       useProxy,
       autoPlaySound,
       defaultSafety,
@@ -67,6 +70,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     setIsTesting(true);
     updateConfig({
       instanceUrl: instanceUrl.trim(),
+      mediaUrl: mediaUrl.trim(),
       useProxy,
     });
     await testConnection();
@@ -144,6 +148,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               />
               <p className="text-[10px] text-slate-500 mt-1">
                 The root URL of your Szurubooru instance (e.g. <code className="text-slate-400">https://booru.domain.com</code> or <code className="text-slate-400">http://szurubooru:8080</code>).
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-slate-400 mb-1 font-medium">Media / Storage URL (Optional)</label>
+              <input
+                type="url"
+                value={mediaUrl}
+                onChange={(e) => setMediaUrl(e.target.value)}
+                placeholder="Leave blank to use Instance URL"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 placeholder-slate-600 focus:outline-none focus:border-pink-500 font-mono text-xs"
+              />
+              <p className="text-[10px] text-slate-500 mt-1">
+                Optional separate upstream URL for images/videos if the API is on a backend port lacking static file routing (e.g. <code className="text-slate-400">https://booru.domain.com</code>).
               </p>
             </div>
 
