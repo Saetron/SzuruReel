@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [1.2.0] - 2026-10-23
+## [1.2.0] - 2026-10-24
 
 ### Added
 - **Multi-User WebUI Authentication**:
@@ -15,6 +15,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added dedicated WebUI user authentication (`LoginModal`): multiple users can each sign in with their own Szurubooru credentials in their browser.
   - User session badge in the navigation bar displaying active avatar, username, and rank badge, with quick access to view profile, switch account, or log out.
   - Per-browser session isolation and persistence in `localStorage`.
+- **Dynamic Aspect Ratio Masonry Grid (`GalleryMode`)**:
+  - Replaced rigid uniform 3:4 aspect ratio cards with a true fluid CSS multi-column masonry grid (`columns-2 sm:columns-3 md:columns-4 lg:columns-5 xl:columns-6 gap-3 sm:gap-4 [column-fill:_balance]`).
+  - Applied dynamic inline aspect ratios computed directly from post canvas dimensions (`canvasWidth / canvasHeight`) with capped max-height (`650px`), eliminating dead space and preventing Cumulative Layout Shift (CLS).
+- **Gallery Infinite Scroll**:
+  - Added seamless infinite scrolling using `IntersectionObserver` with a 400px lookahead sentinel, replacing manual pagination button clicks.
+- **Keyboard Post Switching in Gallery View (`PostDetailModal`)**:
+  - Switch to next post using <kbd>→</kbd> / <kbd>J</kbd> and previous post using <kbd>←</kbd> / <kbd>K</kbd> (<kbd>Esc</kbd> closes).
+  - Floating on-screen Previous and Next chevron buttons on the media viewport with position indicator counter (`current / total`).
+  - Automatic prefetching of subsequent gallery pages when approaching the end of loaded posts for endless keyboard browsing.
+  - Focusable gallery cards with `tabIndex={0}` and <kbd>Enter</kbd> / <kbd>Space</kbd> key activation.
+- **Reel Mode Random Shuffle & Ergonomic Controls**:
+  - Added `Random` shuffle toggle in Reel Mode top controls issuing `sort:random` queries to the upstream API with client-side deduplication.
+  - Relocated desktop Next/Previous (Up/Down) buttons into a dedicated top-right glassmorphic pill accompanied by a slide counter (`current / total`), guaranteeing zero overlap with the right action rail (Like, Save, Comments, Share, Avatar) on any viewport height.
+- **SPA Direct Routing & Shareable Deep Links**:
+  - Full client-side URI routing support with history hydration for `/post/:id`, `/user/:name`, `/tags`, `/pools`, `/comments`, `/users`, `/snapshots`, and URL query parameters (`?q=...`), allowing direct page refreshes and external link sharing.
+- **Dedicated Media Upstream Support (`SZURU_MEDIA_URL`)**:
+  - Added `SZURU_MEDIA_URL` environment variable support allowing media and image files to be served from a dedicated file host or CDN distinct from the API origin.
 - **Full Client Feature Parity with official Szurubooru Client**:
   - **Interactive Image Notes (`Note`)**:
     - Draw, add, view, and delete bounding box annotation notes on images with tooltips.
@@ -44,6 +61,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Anonymous upload option.
   - **Interactive Search Syntax Cheatsheet**:
     - Full reference modal for query tokens, wildcard matching, safety, score ranges, dates, dimensions, uploaders, and pools.
+
+### Fixed
+- **User Avatar Resolution**: Resolved relative avatar URLs (`data/avatars/...`) through `api.resolveMediaUrl()` across all components (`Navbar`, `LoginModal`, `CommentsView`, `ReelComments`, `ReelItem`, `UserProfileModal`, and `UsersView`) preventing HTTP 404/406 image load errors.
+- **Reel Mode Action Rail Collision**: Fixed desktop Up/Down floating buttons colliding with the right action rail by isolating them to the top-right control header.
 
 ---
 
