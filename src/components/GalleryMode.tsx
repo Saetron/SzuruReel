@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { PostSafety, SzuruPost, SzuruTag } from '../types/szuru';
 import { useSzuru } from '../context/SzuruContext';
 import {
@@ -46,6 +46,41 @@ export const GalleryMode: React.FC<GalleryModeProps> = ({
   const [mediaType, setMediaType] = useState<'all' | 'video' | 'image'>('all');
   const [sortBy, setSortBy] = useState<string>('date-desc');
   const [showFilters, setShowFilters] = useState<boolean>(false);
+
+  // Responsive column count to maintain strict left-to-right reading & sort order
+  const [columnCount, setColumnCount] = useState<number>(() => {
+    if (typeof window === 'undefined') return 4;
+    const w = window.innerWidth;
+    if (w < 640) return 2;
+    if (w < 768) return 3;
+    if (w < 1024) return 4;
+    if (w < 1280) return 5;
+    return 6;
+  });
+
+  useEffect(() => {
+    const handleResize = () => {
+      const w = window.innerWidth;
+      let count = 6;
+      if (w < 640) count = 2;
+      else if (w < 768) count = 3;
+      else if (w < 1024) count = 4;
+      else if (w < 1280) count = 5;
+      setColumnCount(count);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Distribute posts across columns round-robin so sort order is strictly preserved left-to-right
+  const columns = useMemo(() => {
+    const cols: SzuruPost[][] = Array.from({ length: columnCount }, () => []);
+    posts.forEach((post, i) => {
+      cols[i % columnCount].push(post);
+    });
+    return cols;
+  }, [posts, columnCount]);
 
   // Tag autocomplete state
   const [suggestions, setSuggestions] = useState<SzuruTag[]>([]);
@@ -357,101 +392,110 @@ export const GalleryMode: React.FC<GalleryModeProps> = ({
           </div>
         )}
 
-        <div className="columns-2 sm:columns-3 md:columns-4 lg:columns-5 xl:columns-6 gap-3 sm:gap-4 [column-fill:_balance]">
-          {posts.map((post) => {
-            const isVideo =
-              post.type === 'video' ||
-              post.mimeType?.startsWith('video/') ||
-              post.contentUrl.endsWith('.mp4') ||
-              post.contentUrl.endsWith('.webm');
-            const thumb = api.resolveMediaUrl(post.thumbnailUrl || post.contentUrl);
+        <div
+          className="grid gap-3 sm:gap-4 items-start w-full"
+          style={{
+            gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`,
+          }}
+        >
+          {columns.map((colPosts, colIdx) => (
+            <div key={colIdx} className="flex flex-col gap-3 sm:gap-4 min-w-0">
+              {colPosts.map((post) => {
+                const isVideo =
+                  post.type === 'video' ||
+                  post.mimeType?.startsWith('video/') ||
+                  post.contentUrl.endsWith('.mp4') ||
+                  post.contentUrl.endsWith('.webm');
+                const thumb = api.resolveMediaUrl(post.thumbnailUrl || post.contentUrl);
 
-            return (
-              <div
-                key={post.id}
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    onOpenDetails(post);
-                  }
-                }}
-                className="break-inside-avoid mb-3 sm:mb-4 group relative bg-slate-900/60 border border-slate-800/80 rounded-2xl overflow-hidden shadow-lg hover:shadow-pink-500/10 hover:border-slate-700 focus:outline-none focus:ring-2 focus:ring-pink-500/50 transition-all duration-300 flex flex-col"
-              >
-                {/* Media thumbnail */}
-                <div
-                  className="relative w-full bg-slate-950 overflow-hidden cursor-pointer"
-                  style={{
-                    aspectRatio:
-                      post.canvasWidth && post.canvasHeight
-                        ? `${post.canvasWidth} / ${post.canvasHeight}`
-                        : undefined,
-                    maxHeight: '650px',
-                  }}
-                  onClick={() => onOpenDetails(post)}
-                >
-                  <img
-                    src={thumb}
-                    alt={`Post #${post.id}`}
-                    loading="lazy"
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                  />
-
-                  {/* Video Badge */}
-                  {isVideo && (
-                    <div className="absolute top-2.5 left-2.5 bg-black/70 backdrop-blur-md text-white px-2 py-0.5 rounded-full flex items-center space-x-1 text-[10px] font-bold shadow-md">
-                      <Film className="w-3 h-3 text-pink-400" />
-                      <span>Reel</span>
-                    </div>
-                  )}
-
-                  {/* Safety badge */}
-                  {post.safety !== 'safe' && (
+                return (
+                  <div
+                    key={post.id}
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        onOpenDetails(post);
+                      }
+                    }}
+                    className="group relative bg-slate-900/60 border border-slate-800/80 rounded-2xl overflow-hidden shadow-lg hover:shadow-pink-500/10 hover:border-slate-700 focus:outline-none focus:ring-2 focus:ring-pink-500/50 transition-all duration-300 flex flex-col"
+                  >
+                    {/* Media thumbnail */}
                     <div
-                      className={`absolute top-2.5 right-2.5 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider backdrop-blur-md shadow-md ${
-                        post.safety === 'sketchy'
-                          ? 'bg-amber-500/80 text-black'
-                          : 'bg-rose-600/80 text-white'
-                      }`}
-                    >
-                      {post.safety}
-                    </div>
-                  )}
-
-                  {/* Overlay action on hover */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col justify-end p-3">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onOpenInReel(post.id);
+                      className="relative w-full bg-slate-950 overflow-hidden cursor-pointer"
+                      style={{
+                        aspectRatio:
+                          post.canvasWidth && post.canvasHeight
+                            ? `${post.canvasWidth} / ${post.canvasHeight}`
+                            : '1 / 1',
+                        maxHeight: '650px',
                       }}
-                      className="w-full py-1.5 px-3 rounded-xl bg-pink-500 hover:bg-pink-600 text-white text-xs font-semibold flex items-center justify-center space-x-1.5 shadow-lg shadow-pink-500/25 transition-transform active:scale-95"
+                      onClick={() => onOpenDetails(post)}
                     >
-                      <Play className="w-3.5 h-3.5 fill-white" />
-                      <span>Watch in Reel</span>
-                    </button>
-                  </div>
-                </div>
+                      <img
+                        src={thumb}
+                        alt={`Post #${post.id}`}
+                        decoding="async"
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      />
 
-                {/* Card footer details */}
-                <div className="p-2.5 flex items-center justify-between text-xs text-slate-400 border-t border-slate-800/60 bg-slate-900/40">
-                  <span className="font-semibold text-slate-300 truncate max-w-[80px]">
-                    #{post.id}
-                  </span>
-                  <div className="flex items-center space-x-3">
-                    <span className="flex items-center space-x-1 text-slate-400">
-                      <Heart className="w-3 h-3 text-pink-400/80" />
-                      <span>{post.score}</span>
-                    </span>
-                    <span className="flex items-center space-x-1 text-slate-400">
-                      <MessageSquare className="w-3 h-3 text-slate-400" />
-                      <span>{post.comments?.length || 0}</span>
-                    </span>
+                      {/* Video Badge */}
+                      {isVideo && (
+                        <div className="absolute top-2.5 left-2.5 bg-black/70 backdrop-blur-md text-white px-2 py-0.5 rounded-full flex items-center space-x-1 text-[10px] font-bold shadow-md">
+                          <Film className="w-3 h-3 text-pink-400" />
+                          <span>Reel</span>
+                        </div>
+                      )}
+
+                      {/* Safety badge */}
+                      {post.safety !== 'safe' && (
+                        <div
+                          className={`absolute top-2.5 right-2.5 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider backdrop-blur-md shadow-md ${
+                            post.safety === 'sketchy'
+                              ? 'bg-amber-500/80 text-black'
+                              : 'bg-rose-600/80 text-white'
+                          }`}
+                        >
+                          {post.safety}
+                        </div>
+                      )}
+
+                      {/* Overlay action on hover */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col justify-end p-3">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onOpenInReel(post.id);
+                          }}
+                          className="w-full py-1.5 px-3 rounded-xl bg-pink-500 hover:bg-pink-600 text-white text-xs font-semibold flex items-center justify-center space-x-1.5 shadow-lg shadow-pink-500/25 transition-transform active:scale-95"
+                        >
+                          <Play className="w-3.5 h-3.5 fill-white" />
+                          <span>Watch in Reel</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Card footer details */}
+                    <div className="p-2.5 flex items-center justify-between text-xs text-slate-400 border-t border-slate-800/60 bg-slate-900/40">
+                      <span className="font-semibold text-slate-300 truncate max-w-[80px]">
+                        #{post.id}
+                      </span>
+                      <div className="flex items-center space-x-3">
+                        <span className="flex items-center space-x-1 text-slate-400">
+                          <Heart className="w-3 h-3 text-pink-400/80" />
+                          <span>{post.score}</span>
+                        </span>
+                        <span className="flex items-center space-x-1 text-slate-400">
+                          <MessageSquare className="w-3 h-3 text-slate-400" />
+                          <span>{post.comments?.length || 0}</span>
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
-            );
-          })}
+                );
+              })}
+            </div>
+          ))}
         </div>
 
         {/* Infinite Scroll Sentinel & Loading Indicator */}

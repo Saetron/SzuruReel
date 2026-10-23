@@ -100,6 +100,9 @@ export class SzuruApiService {
 
   constructor(config: AppConfig) {
     this.config = config;
+    if (config.instanceUrl?.includes(':6666')) {
+      this.apiPrefix = '';
+    }
   }
 
   public updateConfig(config: AppConfig) {
@@ -109,7 +112,7 @@ export class SzuruApiService {
       this.config.apiToken !== config.apiToken
     ) {
       this.dialect = 'auto';
-      this.apiPrefix = '/api';
+      this.apiPrefix = config.instanceUrl?.includes(':6666') ? '' : '/api';
       this.authScheme = 'auto';
       this.cachedTags.clear();
       this.totalCountEstimate = 0;

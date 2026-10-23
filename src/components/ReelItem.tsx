@@ -207,9 +207,9 @@ export const ReelItem: React.FC<ReelItemProps> = ({
         style={{ backgroundImage: `url(${api.resolveMediaUrl(post.thumbnailUrl || post.contentUrl)})` }}
       />
 
-      {/* Main media container */}
+      {/* Main media container - fills 100% height or width depending on aspect ratio */}
       <div
-        className="relative w-full h-full max-w-lg mx-auto flex items-center justify-center cursor-pointer"
+        className="relative w-full h-full flex items-center justify-center cursor-pointer overflow-hidden"
         onClick={handleMediaClick}
       >
         {isVideo ? (
@@ -226,7 +226,7 @@ export const ReelItem: React.FC<ReelItemProps> = ({
             src={mediaUrl}
             alt={`Post #${post.id}`}
             className="w-full h-full object-contain pointer-events-none"
-            loading="lazy"
+            decoding="async"
           />
         )}
 
