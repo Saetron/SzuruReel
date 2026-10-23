@@ -13,6 +13,8 @@ import {
   Film,
   Image as ImageIcon,
   X,
+  Server,
+  Settings as SettingsIcon,
 } from 'lucide-react';
 
 interface GalleryModeProps {
@@ -30,6 +32,8 @@ export const GalleryMode: React.FC<GalleryModeProps> = ({
     setSearchQuery,
     safetyFilter,
     setSafetyFilter,
+    connectionStatus,
+    setIsSettingsOpen,
     showToast,
   } = useSzuru();
 
@@ -288,7 +292,26 @@ export const GalleryMode: React.FC<GalleryModeProps> = ({
 
       {/* Gallery Grid */}
       <div className="max-w-7xl mx-auto px-4 mt-6">
-        {posts.length === 0 && !isLoading && (
+        {!isLoading && connectionStatus === 'unconfigured' && (
+          <div className="flex flex-col items-center justify-center py-20 text-center text-slate-400">
+            <div className="w-16 h-16 rounded-2xl bg-pink-500/10 border border-pink-500/20 flex items-center justify-center text-pink-500 mb-4 shadow-lg shadow-pink-500/10">
+              <Server className="w-8 h-8" />
+            </div>
+            <h3 className="text-xl font-bold text-slate-100">Connect to Szurubooru</h3>
+            <p className="text-xs text-slate-400 max-w-md mt-2 leading-relaxed">
+              Set the <code className="text-pink-400 font-mono">SZURU_URL</code> environment variable in your Docker container or enter your instance URL in settings.
+            </p>
+            <button
+              onClick={() => setIsSettingsOpen(true)}
+              className="mt-5 px-5 py-2.5 rounded-xl bg-pink-500 hover:bg-pink-600 text-white font-semibold text-xs flex items-center space-x-2 shadow-lg shadow-pink-500/30 transition-transform active:scale-95"
+            >
+              <SettingsIcon className="w-4 h-4" />
+              <span>Configure Connection</span>
+            </button>
+          </div>
+        )}
+
+        {posts.length === 0 && !isLoading && connectionStatus !== 'unconfigured' && (
           <div className="flex flex-col items-center justify-center py-20 text-center text-slate-400">
             <Sparkles className="w-12 h-12 text-slate-600 mb-3" />
             <h3 className="text-base font-semibold text-slate-300">No posts found</h3>

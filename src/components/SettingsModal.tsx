@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSzuru } from '../context/SzuruContext';
 import {
   X,
@@ -11,8 +11,9 @@ import {
   AlertTriangle,
   Loader2,
   Volume2,
-  Sparkles,
   Network,
+  RotateCcw,
+  Container,
 } from 'lucide-react';
 import { PostSafety } from '../types/szuru';
 
@@ -24,7 +25,9 @@ interface SettingsModalProps {
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   const {
     config,
+    dockerConfig,
     updateConfig,
+    resetToDockerDefaults,
     testConnection,
     connectionStatus,
     instanceInfo,
@@ -35,10 +38,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const [username, setUsername] = useState(config.username);
   const [apiToken, setApiToken] = useState(config.apiToken);
   const [useProxy, setUseProxy] = useState(config.useProxy);
-  const [isDemoMode, setIsDemoMode] = useState(config.isDemoMode);
   const [autoPlaySound, setAutoPlaySound] = useState(config.autoPlaySound);
   const [defaultSafety, setDefaultSafety] = useState<PostSafety | 'all'>(config.defaultSafety);
   const [isTesting, setIsTesting] = useState(false);
+
+  useEffect(() => {
+    setInstanceUrl(config.instanceUrl);
+    setUsername(config.username);
+    setApiToken(config.apiToken);
+    setUseProxy(config.useProxy);
+    setAutoPlaySound(config.autoPlaySound);
+    setDefaultSafety(config.defaultSafety);
+  }, [config, isOpen]);
 
   if (!isOpen) return null;
 
@@ -49,7 +60,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
       username: username.trim(),
       apiToken: apiToken.trim(),
       useProxy,
-      isDemoMode,
       autoPlaySound,
       defaultSafety,
     });
@@ -59,13 +69,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
   const handleTest = async () => {
     setIsTesting(true);
-    // Apply changes locally to test
     updateConfig({
       instanceUrl: instanceUrl.trim(),
       username: username.trim(),
       apiToken: apiToken.trim(),
       useProxy,
-      isDemoMode,
     });
     await testConnection();
     setIsTesting(false);
@@ -96,26 +104,32 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
         {/* Content Form */}
         <form onSubmit={handleSave} className="flex-1 overflow-y-auto p-5 space-y-5 text-xs">
-          {/* Demo Mode Toggle Banner */}
-          <div className="p-3.5 rounded-xl border border-pink-500/30 bg-pink-500/10 flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <Sparkles className="w-5 h-5 text-pink-400 shrink-0" />
-              <div>
-                <p className="font-bold text-slate-100 text-xs">Demo Preview Mode</p>
-                <p className="text-[11px] text-slate-400">
-                  Try out the TikTok reel mode with sample animated and video posts
-                </p>
+          {/* Docker Environment Variables Status Banner */}
+          <div className="p-3.5 rounded-xl border border-sky-500/30 bg-sky-500/10 flex flex-col space-y-2">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center space-x-2.5">
+                <Container className="w-5 h-5 text-sky-400 shrink-0" />
+                <div>
+                  <p className="font-bold text-slate-100 text-xs">Docker Environment Configuration</p>
+                  <p className="text-[11px] text-slate-400">
+                    {dockerConfig?.instanceUrl
+                      ? `Active container default: ${dockerConfig.instanceUrl}`
+                      : 'Configure SZURU_URL, SZURU_USER, and SZURU_TOKEN in docker-compose.yml'}
+                  </p>
+                </div>
               </div>
+              {dockerConfig?.instanceUrl && (
+                <button
+                  type="button"
+                  onClick={resetToDockerDefaults}
+                  className="px-2.5 py-1 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 text-[10px] font-semibold border border-sky-500/30 flex items-center space-x-1 shrink-0 transition"
+                  title="Reset fields to Docker environment variables"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  <span>Reset to Docker</span>
+                </button>
+              )}
             </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={isDemoMode}
-                onChange={(e) => setIsDemoMode(e.target.checked)}
-                className="sr-only peer"
-              />
-              <div className="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-pink-500"></div>
-            </label>
           </div>
 
           {/* Szurubooru Instance Settings */}
@@ -135,7 +149,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 placeholder-slate-600 focus:outline-none focus:border-pink-500 font-mono text-xs"
               />
               <p className="text-[10px] text-slate-500 mt-1">
-                The root URL of your Szurubooru installation (no /api suffix).
+                The root URL of your Szurubooru instance (e.g. <code className="text-slate-400">https://booru.domain.com</code> or <code className="text-slate-400">http://szurubooru:8080</code>).
               </p>
             </div>
 
@@ -177,7 +191,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   <div>
                     <span className="font-semibold text-slate-200">Container CORS Proxy</span>
                     <p className="text-[10px] text-slate-400">
-                      Bypasses browser CORS restrictions when contacting remote instances
+                      Routes requests via container backend to prevent browser CORS blocks
                     </p>
                   </div>
                 </div>
@@ -198,7 +212,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               <button
                 type="button"
                 onClick={handleTest}
-                disabled={isTesting}
+                disabled={isTesting || !instanceUrl.trim()}
                 className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold flex items-center space-x-1.5 transition disabled:opacity-50"
               >
                 {isTesting ? (
@@ -218,7 +232,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 {connectionStatus === 'connected' && (
                   <span className="text-emerald-400 flex items-center space-x-1 font-semibold">
                     <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>Connected ({instanceInfo?.name || 'Online'})</span>
+                    <span>Connected ({instanceInfo?.name || instanceInfo?.title || 'Online'})</span>
                   </span>
                 )}
                 {connectionStatus === 'error' && (
@@ -227,8 +241,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     <span>Connection Failed</span>
                   </span>
                 )}
-                {connectionStatus === 'demo' && (
-                  <span className="text-pink-400 font-semibold">Demo Mode Active</span>
+                {connectionStatus === 'unconfigured' && (
+                  <span className="text-amber-400 font-medium">Instance URL not configured</span>
                 )}
               </div>
             </div>

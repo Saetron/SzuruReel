@@ -10,7 +10,8 @@ import {
   Flame,
   Volume2,
   VolumeX,
-  Filter,
+  Server,
+  Settings as SettingsIcon,
 } from 'lucide-react';
 
 interface ReelModeProps {
@@ -25,6 +26,8 @@ export const ReelMode: React.FC<ReelModeProps> = ({ onOpenDetails }) => {
     safetyFilter,
     reelInitialPostId,
     setReelInitialPostId,
+    connectionStatus,
+    setIsSettingsOpen,
     showToast,
   } = useSzuru();
 
@@ -263,8 +266,28 @@ export const ReelMode: React.FC<ReelModeProps> = ({ onOpenDetails }) => {
           </div>
         ))}
 
+        {/* Unconfigured / Empty state */}
+        {!isLoading && connectionStatus === 'unconfigured' && (
+          <div className="w-full h-full flex flex-col items-center justify-center text-center p-6 text-slate-400">
+            <div className="w-16 h-16 rounded-2xl bg-pink-500/10 border border-pink-500/20 flex items-center justify-center text-pink-500 mb-4 shadow-lg shadow-pink-500/10">
+              <Server className="w-8 h-8" />
+            </div>
+            <h3 className="text-xl font-bold text-slate-100">Connect to Szurubooru</h3>
+            <p className="text-xs text-slate-400 max-w-md mt-2 leading-relaxed">
+              Set the <code className="text-pink-400 font-mono">SZURU_URL</code> environment variable in your Docker container, or click below to configure the instance URL.
+            </p>
+            <button
+              onClick={() => setIsSettingsOpen(true)}
+              className="mt-5 px-5 py-2.5 rounded-xl bg-pink-500 hover:bg-pink-600 text-white font-semibold text-xs flex items-center space-x-2 shadow-lg shadow-pink-500/30 transition-transform active:scale-95"
+            >
+              <SettingsIcon className="w-4 h-4" />
+              <span>Configure Connection</span>
+            </button>
+          </div>
+        )}
+
         {/* Empty state */}
-        {!isLoading && posts.length === 0 && (
+        {!isLoading && connectionStatus !== 'unconfigured' && posts.length === 0 && (
           <div className="w-full h-full flex flex-col items-center justify-center text-center p-6 text-slate-400">
             <Sparkles className="w-12 h-12 text-pink-500 mb-3 animate-bounce-subtle" />
             <h3 className="text-lg font-bold text-slate-200">No posts found</h3>

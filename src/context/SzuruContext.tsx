@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from 'react';
-import { AppConfig, PostSafety, SzuruInstanceInfo, SzuruPost, SzuruTagCategory } from '../types/szuru';
-import { SzuruApiService } from '../services/szuruApi';
-import { MOCK_CATEGORIES } from '../services/mockData';
+import { AppConfig, DockerServerConfig, PostSafety, SzuruInstanceInfo, SzuruPost, SzuruTagCategory } from '../types/szuru';
+import { DEFAULT_TAG_CATEGORIES, SzuruApiService } from '../services/szuruApi';
 
 interface ToastItem {
   id: string;
@@ -11,7 +10,9 @@ interface ToastItem {
 
 interface SzuruContextType {
   config: AppConfig;
+  dockerConfig: DockerServerConfig | null;
   updateConfig: (newConfig: Partial<AppConfig>) => void;
+  resetToDockerDefaults: () => void;
   api: SzuruApiService;
   activeMode: 'reel' | 'gallery' | 'tags';
   setActiveMode: (mode: 'reel' | 'gallery' | 'tags') => void;
@@ -28,7 +29,7 @@ interface SzuruContextType {
   isUploadOpen: boolean;
   setIsUploadOpen: (open: boolean) => void;
   tagCategories: SzuruTagCategory[];
-  connectionStatus: 'connected' | 'error' | 'testing' | 'demo';
+  connectionStatus: 'connected' | 'error' | 'testing' | 'unconfigured';
   instanceInfo: SzuruInstanceInfo | null;
   testConnection: () => Promise<boolean>;
   toasts: ToastItem[];
@@ -37,11 +38,10 @@ interface SzuruContextType {
 }
 
 const DEFAULT_CONFIG: AppConfig = {
-  instanceUrl: 'http://localhost:8080',
+  instanceUrl: '',
   username: '',
   apiToken: '',
-  useProxy: false,
-  isDemoMode: true, // Default to demo mode for instant working preview!
+  useProxy: true,
   autoPlaySound: false,
   defaultSafety: 'all',
   defaultSort: 'date-desc',
@@ -50,6 +50,8 @@ const DEFAULT_CONFIG: AppConfig = {
 const SzuruContext = createContext<SzuruContextType | null>(null);
 
 export const SzuruProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [dockerConfig, setDockerConfig] = useState<DockerServerConfig | null>(null);
+
   const [config, setConfig] = useState<AppConfig>(() => {
     try {
       const stored = localStorage.getItem('szuru_reel_config');
@@ -69,8 +71,8 @@ export const SzuruProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [reelInitialPostId, setReelInitialPostId] = useState<number | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
-  const [tagCategories, setTagCategories] = useState<SzuruTagCategory[]>(MOCK_CATEGORIES);
-  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'error' | 'testing' | 'demo'>('demo');
+  const [tagCategories, setTagCategories] = useState<SzuruTagCategory[]>(DEFAULT_TAG_CATEGORIES);
+  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'error' | 'testing' | 'unconfigured'>('unconfigured');
   const [instanceInfo, setInstanceInfo] = useState<SzuruInstanceInfo | null>(null);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
 
@@ -100,14 +102,31 @@ export const SzuruProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   }, []);
 
-  const testConnection = useCallback(async (): Promise<boolean> => {
-    if (config.isDemoMode) {
-      setConnectionStatus('demo');
-      setInstanceInfo({
-        name: 'SzuruReel Demo Booru',
-        version: '1.20-demo',
+  const resetToDockerDefaults = useCallback(() => {
+    try {
+      localStorage.removeItem('szuru_reel_config');
+    } catch {
+      // ignore
+    }
+    if (dockerConfig) {
+      setConfig({
+        instanceUrl: dockerConfig.instanceUrl,
+        username: dockerConfig.username,
+        apiToken: dockerConfig.apiToken,
+        useProxy: dockerConfig.useProxy,
+        defaultSafety: dockerConfig.defaultSafety || 'all',
+        autoPlaySound: dockerConfig.autoPlaySound || false,
+        defaultSort: dockerConfig.defaultSort || 'date-desc',
       });
-      return true;
+      showToast('Reset to Docker environment configuration', 'info');
+    }
+  }, [dockerConfig, showToast]);
+
+  const testConnection = useCallback(async (): Promise<boolean> => {
+    if (!config.instanceUrl || !config.instanceUrl.trim()) {
+      setConnectionStatus('unconfigured');
+      setInstanceInfo(null);
+      return false;
     }
 
     setConnectionStatus('testing');
@@ -115,7 +134,7 @@ export const SzuruProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const info = await api.getInfo();
       setInstanceInfo(info);
       setConnectionStatus('connected');
-      showToast(`Connected to ${info.name || 'Szurubooru'}!`, 'success');
+      showToast(`Connected to ${info.name || info.title || 'Szurubooru'}!`, 'success');
 
       // Fetch categories in background
       api.getTagCategories().then(setTagCategories).catch(() => {});
@@ -125,42 +144,53 @@ export const SzuruProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       showToast(`Connection failed: ${err.message || 'Check URL/credentials'}`, 'error');
       return false;
     }
-  }, [api, config.isDemoMode, showToast]);
+  }, [api, config.instanceUrl, showToast]);
 
-  // Initial setup: check server / demo status
+  // Load Docker environment variables from server endpoint
   useEffect(() => {
-    // If not in demo mode, test connection silently
-    if (!config.isDemoMode) {
-      testConnection();
-    } else {
-      setConnectionStatus('demo');
-    }
-  }, [config.isDemoMode, testConnection]);
-
-  // Also query container runtime default configs if served from our node server
-  useEffect(() => {
-    fetch('/api/server-info')
+    fetch('/api/config')
       .then((res) => (res.ok ? res.json() : null))
-      .then((serverData) => {
-        if (serverData && serverData.defaultUrl && !localStorage.getItem('szuru_reel_config')) {
-          updateConfig({
-            instanceUrl: serverData.defaultUrl || config.instanceUrl,
-            username: serverData.defaultUser || config.username,
-            apiToken: serverData.defaultToken || config.apiToken,
-            isDemoMode: false,
-          });
+      .then((data: DockerServerConfig | null) => {
+        if (data) {
+          setDockerConfig(data);
+
+          // If no custom config is saved in localStorage, or if instanceUrl is currently empty
+          const hasLocalConfig = Boolean(localStorage.getItem('szuru_reel_config'));
+          if (!hasLocalConfig && data.instanceUrl) {
+            setConfig({
+              instanceUrl: data.instanceUrl,
+              username: data.username || '',
+              apiToken: data.apiToken || '',
+              useProxy: data.useProxy ?? true,
+              defaultSafety: data.defaultSafety || 'all',
+              autoPlaySound: data.autoPlaySound || false,
+              defaultSort: data.defaultSort || 'date-desc',
+            });
+            setSafetyFilter(data.defaultSafety || 'all');
+          }
         }
       })
       .catch(() => {
-        // standalone vite dev mode, fine
+        // Dev server standalone
       });
-  }, [updateConfig, config.instanceUrl, config.username, config.apiToken]);
+  }, []);
+
+  // When config.instanceUrl changes or is initially populated, run connection check
+  useEffect(() => {
+    if (config.instanceUrl && config.instanceUrl.trim()) {
+      testConnection();
+    } else {
+      setConnectionStatus('unconfigured');
+    }
+  }, [config.instanceUrl, testConnection]);
 
   return (
     <SzuruContext.Provider
       value={{
         config,
+        dockerConfig,
         updateConfig,
+        resetToDockerDefaults,
         api,
         activeMode,
         setActiveMode,

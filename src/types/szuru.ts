@@ -87,8 +87,17 @@ export interface AppConfig {
   username: string;
   apiToken: string;
   useProxy: boolean;
-  isDemoMode: boolean;
   autoPlaySound: boolean;
   defaultSafety: PostSafety | 'all';
+  defaultSort: string;
+}
+
+export interface DockerServerConfig {
+  instanceUrl: string;
+  username: string;
+  apiToken: string;
+  useProxy: boolean;
+  defaultSafety: PostSafety | 'all';
+  autoPlaySound: boolean;
   defaultSort: string;
 }

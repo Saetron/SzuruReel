@@ -11,10 +11,21 @@ services:
     ports:
       - "8080:8080"
     environment:
-      # Optional: Preconfigure your Szurubooru instance connection
-      - SZURU_URL=http://localhost:8080
+      # --- Szurubooru Connection Configuration ---
+      # Base URL of your Szurubooru instance (no trailing slash)
+      - SZURU_URL=https://booru.example.com
+      # Optional API credentials for authenticated actions (likes, favorites, comments, uploads)
       - SZURU_USER=
       - SZURU_TOKEN=
+      # Route API requests through the container's built-in proxy (recommended: prevents browser CORS restrictions)
+      - SZURU_USE_PROXY=true
+      # Default safety filter for feed: all, safe, sketchy, unsafe
+      - SZURU_DEFAULT_SAFETY=all
+      # Default video audio playback: false (muted), true (unmuted if browser allows)
+      - SZURU_AUTOPLAY_SOUND=false
+      # Default sort order: date-desc, date-asc, score-desc, random
+      - SZURU_DEFAULT_SORT=date-desc
+      # Container server port
       - PORT=8080
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/healthz"]

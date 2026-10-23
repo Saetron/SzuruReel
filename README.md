@@ -55,16 +55,32 @@ Built with **React 18**, **TypeScript**, **Tailwind CSS**, and **Vite**, package
 
 ---
 
-### ⚡ Direct API & Docker CORS Proxy
+### ⚡ Direct API & Container CORS Proxy
 - **Direct Mode**: Browser connects straight to your Szurubooru API (`/api/...`).
-- **Container Proxy Mode**: Built-in zero-dependency Node proxy (`/api/proxy`) transparently injects permissive CORS headers, allowing you to connect to remote Szurubooru instances even if CORS is not configured on the remote server.
-- **Interactive Demo Mode**: Includes sample videos and posts for an instant working demo right after starting the container.
+- **Container CORS Proxy Mode**: Built-in zero-dependency Node proxy (`/api/proxy`) transparently injects permissive CORS headers, allowing you to connect to remote or containerized Szurubooru instances without browser cross-origin blocks.
 
 ---
 
-## 🚀 Quick Start with Docker
+## 🐳 Docker Deployment & Environment Configuration
 
-### Using Docker Compose (Recommended)
+SzuruReel is configured entirely through standard **Docker environment variables**.
+
+### Environment Variables Reference
+
+| Variable | Description | Default | Example |
+| :--- | :--- | :--- | :--- |
+| `SZURU_URL` | Base URL of your Szurubooru instance (no trailing slash) | *(empty)* | `https://booru.example.com` or `http://szurubooru:8080` |
+| `SZURU_USER` | Username for authenticated actions (likes, favorites, comments, uploads) | *(empty)* | `alice` |
+| `SZURU_TOKEN` | API token / password for the user | *(empty)* | `mysecrettoken` |
+| `SZURU_USE_PROXY` | Route requests through container's built-in CORS proxy | `true` | `true` / `false` |
+| `SZURU_DEFAULT_SAFETY` | Default safety filter | `all` | `all`, `safe`, `sketchy`, `unsafe` |
+| `SZURU_AUTOPLAY_SOUND` | Default video audio playback | `false` | `false` (muted), `true` (unmuted) |
+| `SZURU_DEFAULT_SORT` | Default post sorting order | `date-desc` | `date-desc`, `date-asc`, `score-desc`, `random` |
+| `PORT` | Container web server port | `8080` | `8080` |
+
+---
+
+### Running with Docker Compose (Recommended)
 
 1. Clone this repository:
    ```bash
@@ -72,35 +88,45 @@ Built with **React 18**, **TypeScript**, **Tailwind CSS**, and **Vite**, package
    cd booru
    ```
 
-2. Run with Docker Compose:
+2. Edit `docker-compose.yml` to set your instance URL:
+   ```yaml
+   services:
+     szuru-reel:
+       image: szuru-reel:latest
+       build: .
+       ports:
+         - "8080:8080"
+       environment:
+         - SZURU_URL=https://booru.example.com
+         - SZURU_USER=myusername
+         - SZURU_TOKEN=mysecretapitoken
+         - SZURU_USE_PROXY=true
+         - SZURU_DEFAULT_SAFETY=all
+         - SZURU_AUTOPLAY_SOUND=false
+         - PORT=8080
+   ```
+
+3. Launch container:
    ```bash
    docker compose up -d
    ```
 
-3. Open your browser at [http://localhost:8080](http://localhost:8080).
+4. Open your browser at [http://localhost:8080](http://localhost:8080).
 
-### Optional: Preconfigure your Szurubooru Instance
+---
 
-You can specify your Szurubooru URL and credentials in `docker-compose.yml` or via environment variables:
-
-```yaml
-services:
-  szuru-reel:
-    image: szuru-reel:latest
-    build: .
-    ports:
-      - "8080:8080"
-    environment:
-      - SZURU_URL=https://booru.example.com
-      - SZURU_USER=myusername
-      - SZURU_TOKEN=mysecretapitoken
-```
-
-Or run directly with Docker:
+### Running with Docker CLI
 
 ```bash
 docker build -t szuru-reel .
-docker run -d -p 8080:8080 -e SZURU_URL=https://booru.example.com szuru-reel
+
+docker run -d \
+  -p 8080:8080 \
+  -e SZURU_URL="https://booru.example.com" \
+  -e SZURU_USER="myusername" \
+  -e SZURU_TOKEN="mysecretapitoken" \
+  --name szuru-reel \
+  szuru-reel
 ```
 
 ---
@@ -136,18 +162,17 @@ npm start # runs the lightweight server on port 8080
 ```
 ├── Dockerfile              # Multi-stage production Docker build
 ├── docker-compose.yml      # Docker Compose setup
-├── server.js               # Lightweight Node.js server with CORS proxy & SPA fallback
+├── server.js               # Lightweight Node.js server with CORS proxy & env configuration
 ├── package.json
 ├── tailwind.config.js
 ├── vite.config.ts
 ├── src/
 │   ├── types/
-│   │   └── szuru.ts        # TypeScript definitions for Szurubooru API
+│   │   └── szuru.ts        # TypeScript definitions for Szurubooru API & Docker config
 │   ├── services/
-│   │   ├── szuruApi.ts     # Szurubooru API service (direct / proxy)
-│   │   └── mockData.ts     # Demo posts & categories
+│   │   └── szuruApi.ts     # Szurubooru API client (direct & proxy)
 │   ├── context/
-│   │   └── SzuruContext.tsx # Central app state, config, and toasts
+│   │   └── SzuruContext.tsx # Central app state initialized from Docker env
 │   ├── components/
 │   │   ├── ReelMode.tsx    # Vertical scroll snap container with snap detection
 │   │   ├── ReelItem.tsx    # TikTok slide, video player, double-tap heart, action bar

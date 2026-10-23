@@ -6,9 +6,9 @@ import {
   Tag,
   Upload,
   Settings,
-  Sparkles,
   Wifi,
   WifiOff,
+  AlertCircle,
 } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
@@ -87,15 +87,22 @@ export const Navbar: React.FC = () => {
             className={`hidden sm:flex items-center space-x-1.5 px-3 py-1.5 rounded-xl border text-[11px] font-semibold transition ${
               connectionStatus === 'connected'
                 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
-                : connectionStatus === 'demo'
-                ? 'bg-pink-500/10 text-pink-400 border-pink-500/30 hover:bg-pink-500/20'
+                : connectionStatus === 'unconfigured'
+                ? 'bg-amber-500/10 text-amber-400 border-amber-500/30 hover:bg-amber-500/20'
                 : 'bg-rose-500/10 text-rose-400 border-rose-500/30 hover:bg-rose-500/20'
             }`}
+            title="Click to configure Szurubooru connection"
           >
             {connectionStatus === 'connected' && <Wifi className="w-3.5 h-3.5" />}
-            {connectionStatus === 'demo' && <Sparkles className="w-3.5 h-3.5" />}
+            {connectionStatus === 'unconfigured' && <AlertCircle className="w-3.5 h-3.5" />}
             {connectionStatus === 'error' && <WifiOff className="w-3.5 h-3.5" />}
-            <span className="capitalize">{instanceInfo?.name || connectionStatus}</span>
+            <span className="capitalize">
+              {connectionStatus === 'connected'
+                ? instanceInfo?.name || instanceInfo?.title || 'Connected'
+                : connectionStatus === 'unconfigured'
+                ? 'Set URL'
+                : 'Disconnected'}
+            </span>
           </button>
 
           {/* Upload Button */}
