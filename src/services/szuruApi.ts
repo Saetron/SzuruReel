@@ -94,6 +94,7 @@ export class SzuruApiService {
   private config: AppConfig;
   private dialect: 'auto' | 'szuru' | 'danbooru' = 'auto';
   private apiPrefix: '/api' | '' = '/api';
+  private authScheme: 'auto' | 'Token' | 'Basic' = 'auto';
   private cachedTags: Map<string, SzuruTag> = new Map();
   private totalCountEstimate = 0;
 
@@ -102,9 +103,14 @@ export class SzuruApiService {
   }
 
   public updateConfig(config: AppConfig) {
-    if (this.config.instanceUrl !== config.instanceUrl) {
+    if (
+      this.config.instanceUrl !== config.instanceUrl ||
+      this.config.username !== config.username ||
+      this.config.apiToken !== config.apiToken
+    ) {
       this.dialect = 'auto';
       this.apiPrefix = '/api';
+      this.authScheme = 'auto';
       this.cachedTags.clear();
       this.totalCountEstimate = 0;
     }
@@ -116,14 +122,25 @@ export class SzuruApiService {
     return `${this.apiPrefix}${clean}`;
   }
 
-  private getAuthHeaders(): HeadersInit {
+  private detectAuthScheme(): 'Token' | 'Basic' {
+    if (this.authScheme !== 'auto') {
+      return this.authScheme;
+    }
+    const token = (this.config.apiToken || '').trim();
+    // Szurubooru tokens are UUIDs: 8-4-4-4-12 hex chars. Passwords are arbitrary strings.
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(token);
+    return isUuid ? 'Token' : 'Basic';
+  }
+
+  private getAuthHeaders(schemeOverride?: 'Token' | 'Basic'): HeadersInit {
     const headers: Record<string, string> = {
       Accept: 'application/json',
     };
 
     if (this.config.username && this.config.apiToken) {
+      const scheme = schemeOverride || this.detectAuthScheme();
       const credentials = btoa(`${this.config.username}:${this.config.apiToken}`);
-      headers['Authorization'] = `Token ${credentials}`;
+      headers['Authorization'] = `${scheme} ${credentials}`;
     }
 
     return headers;
@@ -175,10 +192,35 @@ export class SzuruApiService {
       ...(options.headers || {}),
     };
 
-    const res = await fetch(targetUrl, {
+    let res = await fetch(targetUrl, {
       ...options,
       headers,
     });
+
+    // If unauthorized or forbidden, retry with alternate auth scheme (Token <-> Basic)
+    if (
+      (res.status === 401 || res.status === 403) &&
+      this.config.username &&
+      this.config.apiToken &&
+      this.authScheme === 'auto'
+    ) {
+      const currentScheme = this.detectAuthScheme();
+      const alternateScheme = currentScheme === 'Token' ? 'Basic' : 'Token';
+      const alternateHeaders = {
+        ...this.getAuthHeaders(alternateScheme),
+        ...(options.headers || {}),
+      };
+
+      const retryRes = await fetch(targetUrl, {
+        ...options,
+        headers: alternateHeaders,
+      });
+
+      if (retryRes.ok) {
+        this.authScheme = alternateScheme;
+        res = retryRes;
+      }
+    }
 
     if (!res.ok) {
       const errText = await res.text().catch(() => '');

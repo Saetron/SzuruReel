@@ -340,22 +340,36 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  // Group tags by category
+  // Group tags by category dynamically so NO tags are dropped
   const categorizedTags = React.useMemo(() => {
-    const map: Record<string, typeof post.tags> = {
-      artist: [],
-      character: [],
-      copyright: [],
-      general: [],
-      meta: [],
-    };
-    post.tags.forEach((tag) => {
-      const cat = (tag.category || 'general').toLowerCase();
+    const map: Record<string, typeof post.tags> = {};
+    (post.tags || []).forEach((tag) => {
+      const cat = (tag.category || 'default').toLowerCase().trim();
       if (!map[cat]) map[cat] = [];
       map[cat].push(tag);
     });
     return map;
   }, [post.tags]);
+
+  // Order categories: standard booru categories first, then any custom categories alphabetically
+  const sortedCategories = React.useMemo(() => {
+    const orderPriority: Record<string, number> = {
+      artist: 1,
+      character: 2,
+      copyright: 3,
+      general: 4,
+      default: 5,
+      species: 6,
+      meta: 7,
+      technical: 8,
+    };
+    return Object.keys(categorizedTags).sort((a, b) => {
+      const pA = orderPriority[a] ?? 99;
+      const pB = orderPriority[b] ?? 99;
+      if (pA !== pB) return pA - pB;
+      return a.localeCompare(b);
+    });
+  }, [categorizedTags]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-0 md:p-6 bg-black/85 backdrop-blur-md animate-fade-in">
@@ -708,31 +722,39 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
                   <span>Tags ({post.tags.length})</span>
                 </div>
 
-                {(['artist', 'character', 'copyright', 'general', 'meta'] as const).map((cat) => {
+                {sortedCategories.map((cat) => {
                   const list = categorizedTags[cat] || [];
                   if (list.length === 0) return null;
 
                   const catColors: Record<string, string> = {
-                    artist: 'text-rose-400 bg-rose-500/10 border-rose-500/20',
-                    character: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
-                    copyright: 'text-purple-400 bg-purple-500/10 border-purple-500/20',
-                    general: 'text-sky-400 bg-sky-500/10 border-sky-500/20',
-                    meta: 'text-amber-400 bg-amber-500/10 border-amber-500/20',
+                    artist: 'text-rose-400 bg-rose-500/10 border-rose-500/20 hover:bg-rose-500/20',
+                    character: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20 hover:bg-emerald-500/20',
+                    copyright: 'text-purple-400 bg-purple-500/10 border-purple-500/20 hover:bg-purple-500/20',
+                    general: 'text-sky-400 bg-sky-500/10 border-sky-500/20 hover:bg-sky-500/20',
+                    default: 'text-sky-400 bg-sky-500/10 border-sky-500/20 hover:bg-sky-500/20',
+                    meta: 'text-amber-400 bg-amber-500/10 border-amber-500/20 hover:bg-amber-500/20',
+                    technical: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/20 hover:bg-cyan-500/20',
+                    species: 'text-orange-400 bg-orange-500/10 border-orange-500/20 hover:bg-orange-500/20',
                   };
+                  const colorClass = catColors[cat] || 'text-indigo-400 bg-indigo-500/10 border-indigo-500/20 hover:bg-indigo-500/20';
+                  const displayCatName = cat === 'default' ? 'General' : cat;
 
                   return (
                     <div key={cat} className="space-y-1">
-                      <span className="text-[10px] text-slate-400 capitalize font-medium">{cat}</span>
+                      <span className="text-[10px] text-slate-400 capitalize font-medium">{displayCatName}</span>
                       <div className="flex flex-wrap gap-1">
-                        {list.map((tag) => (
-                          <button
-                            key={tag.names[0]}
-                            onClick={() => handleTagClick(tag.names[0])}
-                            className={`px-2 py-0.5 rounded-md border text-[11px] font-medium transition-colors hover:brightness-125 ${catColors[cat]}`}
-                          >
-                            {tag.names[0]}
-                          </button>
-                        ))}
+                        {list.map((tag) => {
+                          const primaryName = tag.names[0] || 'unknown';
+                          return (
+                            <button
+                              key={primaryName}
+                              onClick={() => handleTagClick(primaryName)}
+                              className={`px-2 py-0.5 rounded-md border text-[11px] font-medium transition-colors hover:brightness-125 ${colorClass}`}
+                            >
+                              {primaryName}
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
                   );

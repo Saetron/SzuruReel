@@ -188,6 +188,10 @@ export const ReelItem: React.FC<ReelItemProps> = ({
         return 'bg-purple-500/20 text-purple-300 border-purple-500/30 hover:bg-purple-500/30';
       case 'meta':
         return 'bg-amber-500/20 text-amber-300 border-amber-500/30 hover:bg-amber-500/30';
+      case 'technical':
+        return 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30 hover:bg-cyan-500/30';
+      case 'species':
+        return 'bg-orange-500/20 text-orange-300 border-orange-500/30 hover:bg-orange-500/30';
       default:
         return 'bg-sky-500/20 text-sky-300 border-sky-500/30 hover:bg-sky-500/30';
     }
