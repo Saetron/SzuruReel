@@ -42,8 +42,8 @@ export const TagExplorer: React.FC = () => {
   const fetchTags = useCallback(async () => {
     setIsLoading(true);
     try {
-      const results = await api.searchTags(query, 60);
-      setTags(results);
+      const results = await api.getTags({ query: query.trim(), limit: 100 });
+      setTags(results.results || []);
     } catch (err: any) {
       showToast(`Failed to load tags: ${err.message}`, 'error');
     } finally {

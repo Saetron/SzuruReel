@@ -718,12 +718,13 @@ export class SzuruApiService {
         results: results.slice(params.offset || 0, (params.offset || 0) + (params.limit || 20)),
       };
     }
-    const query = params.query ? encodeURIComponent(params.query.trim()) : '';
+    const cleanQuery = params.query ? encodeURIComponent(params.query.trim()) : '';
     const offset = params.offset || 0;
     const limit = params.limit || 20;
+    const qParam = cleanQuery ? `query=${cleanQuery}&offset=${offset}&limit=${limit}` : `offset=${offset}&limit=${limit}`;
     try {
       return await this.request<SzuruSearchResult<SzuruTag>>(
-        this.endpoint(`/tags/?query=${query}&offset=${offset}&limit=${limit}`)
+        this.endpoint(`/tags/?${qParam}`)
       );
     } catch {
       return { query: params.query || '', offset, limit, total: 0, results: [] };
@@ -731,13 +732,13 @@ export class SzuruApiService {
   }
 
   public async searchTags(query: string, limit = 15): Promise<SzuruTag[]> {
-    if (!query.trim()) return [];
+    const cleanQ = query.trim();
 
     if (this.dialect === 'danbooru') {
-      const q = query.toLowerCase();
+      const q = cleanQ.toLowerCase();
       const matches: SzuruTag[] = [];
       for (const [name, tag] of this.cachedTags) {
-        if (name.toLowerCase().includes(q)) {
+        if (!q || name.toLowerCase().includes(q)) {
           matches.push(tag);
           if (matches.length >= limit) break;
         }
@@ -746,14 +747,16 @@ export class SzuruApiService {
     }
 
     try {
-      const endpoint = this.endpoint(`/tags/?query=${encodeURIComponent(query)}&limit=${limit}`);
+      const endpoint = cleanQ
+        ? this.endpoint(`/tags/?query=${encodeURIComponent(cleanQ)}&limit=${limit}`)
+        : this.endpoint(`/tags/?limit=${limit}`);
       const res = await this.request<{ results: SzuruTag[] }>(endpoint);
       return res.results || [];
     } catch {
-      const q = query.toLowerCase();
+      const q = cleanQ.toLowerCase();
       const fallback: SzuruTag[] = [];
       for (const [name, tag] of this.cachedTags) {
-        if (name.toLowerCase().includes(q)) {
+        if (!q || name.toLowerCase().includes(q)) {
           fallback.push(tag);
           if (fallback.length >= limit) break;
         }

@@ -29,6 +29,7 @@ import {
   Check,
   Shield,
   Link as LinkIcon,
+  Share2,
 } from 'lucide-react';
 
 interface PostDetailModalProps {
@@ -332,6 +333,14 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
     onClose();
   };
 
+  const handleSharePost = async () => {
+    const shareUrl = `${window.location.origin}/post/${post.id}`;
+    if (navigator.clipboard) {
+      await navigator.clipboard.writeText(shareUrl);
+      showToast('Post link copied to clipboard!', 'info');
+    }
+  };
+
   const formatFileSize = (bytes: number) => {
     if (!bytes) return '0 B';
     const k = 1024;
@@ -540,6 +549,14 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
             </div>
 
             <div className="flex items-center space-x-1">
+              <button
+                onClick={handleSharePost}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white border border-transparent hover:bg-slate-800 transition"
+                title="Copy post link"
+                aria-label="Share post link"
+              >
+                <Share2 className="w-4 h-4" />
+              </button>
               <button
                 onClick={() => setIsEditingPost(!isEditingPost)}
                 className={`p-1.5 rounded-lg border transition ${

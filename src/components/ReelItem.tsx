@@ -165,7 +165,7 @@ export const ReelItem: React.FC<ReelItemProps> = ({
   };
 
   const handleShare = async () => {
-    const shareUrl = window.location.origin + `?post=${post.id}`;
+    const shareUrl = `${window.location.origin}/post/${post.id}`;
     if (navigator.clipboard) {
       await navigator.clipboard.writeText(shareUrl);
       showToast('Post link copied to clipboard!', 'info');
