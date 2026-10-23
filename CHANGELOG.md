@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.2.0] - 2026-10-23
 
 ### Added
+- **Multi-User WebUI Authentication**:
+  - Removed server-level username and password/token environment variables (`SZURU_USER`, `SZURU_TOKEN`) so credentials are never shared or leaked across container visitors.
+  - Added dedicated WebUI user authentication (`LoginModal`): multiple users can each sign in with their own Szurubooru credentials in their browser.
+  - User session badge in the navigation bar displaying active avatar, username, and rank badge, with quick access to view profile, switch account, or log out.
+  - Per-browser session isolation and persistence in `localStorage`.
 - **Full Client Feature Parity with official Szurubooru Client**:
   - **Interactive Image Notes (`Note`)**:
     - Draw, add, view, and delete bounding box annotation notes on images with tooltips.

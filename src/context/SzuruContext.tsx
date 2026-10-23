@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from 'react';
-import { AppConfig, DockerServerConfig, PostSafety, SzuruInstanceInfo, SzuruPost, SzuruTagCategory } from '../types/szuru';
+import { AppConfig, DockerServerConfig, PostSafety, SzuruFullUser, SzuruInstanceInfo, SzuruPost, SzuruTagCategory } from '../types/szuru';
 import { DEFAULT_TAG_CATEGORIES, SzuruApiService } from '../services/szuruApi';
 
 interface ToastItem {
@@ -16,6 +16,11 @@ interface SzuruContextType {
   updateConfig: (newConfig: Partial<AppConfig>) => void;
   resetToDockerDefaults: () => void;
   api: SzuruApiService;
+  currentUser: SzuruFullUser | null;
+  isLoginModalOpen: boolean;
+  setIsLoginModalOpen: (open: boolean) => void;
+  login: (username: string, apiToken: string) => Promise<{ success: boolean; error?: string }>;
+  logout: () => void;
   activeMode: AppNavMode;
   setActiveMode: (mode: AppNavMode) => void;
   searchQuery: string;
@@ -61,16 +66,40 @@ const SzuruContext = createContext<SzuruContextType | null>(null);
 export const SzuruProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [dockerConfig, setDockerConfig] = useState<DockerServerConfig | null>(null);
 
-  const [config, setConfig] = useState<AppConfig>(() => {
+  const [currentUser, setCurrentUser] = useState<SzuruFullUser | null>(() => {
     try {
-      const stored = localStorage.getItem('szuru_reel_config');
+      const stored = localStorage.getItem('szuru_user_session');
       if (stored) {
-        return { ...DEFAULT_CONFIG, ...JSON.parse(stored) };
+        const parsed = JSON.parse(stored);
+        return parsed.user || null;
       }
     } catch {
       // ignore
     }
-    return DEFAULT_CONFIG;
+    return null;
+  });
+
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+
+  const [config, setConfig] = useState<AppConfig>(() => {
+    let base = { ...DEFAULT_CONFIG };
+    try {
+      const stored = localStorage.getItem('szuru_reel_config');
+      if (stored) {
+        base = { ...base, ...JSON.parse(stored) };
+      }
+      const session = localStorage.getItem('szuru_user_session');
+      if (session) {
+        const parsedSession = JSON.parse(session);
+        if (parsedSession.username && parsedSession.apiToken) {
+          base.username = parsedSession.username;
+          base.apiToken = parsedSession.apiToken;
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return base;
   });
 
   const [activeMode, setActiveMode] = useState<AppNavMode>('reel');
@@ -114,6 +143,54 @@ export const SzuruProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   }, []);
 
+  const login = useCallback(async (username: string, apiToken: string): Promise<{ success: boolean; error?: string }> => {
+    const cleanUser = username.trim();
+    const cleanToken = apiToken.trim();
+    if (!cleanUser) {
+      return { success: false, error: 'Username is required' };
+    }
+    if (!cleanToken) {
+      return { success: false, error: 'API token or password is required' };
+    }
+
+    try {
+      const testApi = new SzuruApiService({
+        ...config,
+        username: cleanUser,
+        apiToken: cleanToken,
+      });
+
+      const userDetails = await testApi.getUser(cleanUser);
+
+      const sessionData = {
+        username: cleanUser,
+        apiToken: cleanToken,
+        user: userDetails,
+      };
+      localStorage.setItem('szuru_user_session', JSON.stringify(sessionData));
+
+      setCurrentUser(userDetails);
+      updateConfig({ username: cleanUser, apiToken: cleanToken });
+      showToast(`Welcome back, ${cleanUser}!`, 'success');
+      return { success: true };
+    } catch (err: any) {
+      const msg = err.message || 'Authentication failed. Please verify your username and API token/password.';
+      showToast(msg, 'error');
+      return { success: false, error: msg };
+    }
+  }, [config, showToast, updateConfig]);
+
+  const logout = useCallback(() => {
+    try {
+      localStorage.removeItem('szuru_user_session');
+    } catch {
+      // ignore
+    }
+    setCurrentUser(null);
+    updateConfig({ username: '', apiToken: '' });
+    showToast('Logged out successfully', 'info');
+  }, [showToast, updateConfig]);
+
   const resetToDockerDefaults = useCallback(() => {
     try {
       localStorage.removeItem('szuru_reel_config');
@@ -121,15 +198,14 @@ export const SzuruProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       // ignore
     }
     if (dockerConfig) {
-      setConfig({
+      setConfig((prev) => ({
+        ...prev,
         instanceUrl: dockerConfig.instanceUrl,
-        username: dockerConfig.username,
-        apiToken: dockerConfig.apiToken,
         useProxy: dockerConfig.useProxy,
         defaultSafety: dockerConfig.defaultSafety || 'all',
         autoPlaySound: dockerConfig.autoPlaySound || false,
         defaultSort: dockerConfig.defaultSort || 'date-desc',
-      });
+      }));
       showToast('Reset to Docker environment configuration', 'info');
     }
   }, [dockerConfig, showToast]);
@@ -176,15 +252,14 @@ export const SzuruProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
           const hasLocalConfig = Boolean(localStorage.getItem('szuru_reel_config'));
           if (!hasLocalConfig && data.instanceUrl) {
-            setConfig({
+            setConfig((prev) => ({
+              ...prev,
               instanceUrl: data.instanceUrl,
-              username: data.username || '',
-              apiToken: data.apiToken || '',
               useProxy: data.useProxy ?? true,
               defaultSafety: data.defaultSafety || 'all',
               autoPlaySound: data.autoPlaySound || false,
               defaultSort: data.defaultSort || 'date-desc',
-            });
+            }));
             setSafetyFilter(data.defaultSafety || 'all');
           }
         }
@@ -192,6 +267,24 @@ export const SzuruProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       .catch(() => {
         // Dev server standalone
       });
+  }, []);
+
+  // Refresh user profile details in background if session active
+  useEffect(() => {
+    if (currentUser?.name && config.username && config.apiToken) {
+      api.getUser(currentUser.name)
+        .then((fresh) => {
+          setCurrentUser(fresh);
+          const stored = localStorage.getItem('szuru_user_session');
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            localStorage.setItem('szuru_user_session', JSON.stringify({ ...parsed, user: fresh }));
+          }
+        })
+        .catch(() => {
+          // preserve local session state
+        });
+    }
   }, []);
 
   // When config.instanceUrl changes or is initially populated, run connection check
@@ -211,6 +304,11 @@ export const SzuruProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         updateConfig,
         resetToDockerDefaults,
         api,
+        currentUser,
+        isLoginModalOpen,
+        setIsLoginModalOpen,
+        login,
+        logout,
         activeMode,
         setActiveMode,
         searchQuery,

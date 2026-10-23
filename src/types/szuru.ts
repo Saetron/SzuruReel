@@ -140,6 +140,12 @@ export interface SzuruInstanceInfo {
   totalPosts?: number;
 }
 
+export interface UserSession {
+  username: string;
+  apiToken: string;
+  user?: SzuruFullUser;
+}
+
 export interface AppConfig {
   instanceUrl: string;
   username: string;
@@ -152,8 +158,6 @@ export interface AppConfig {
 
 export interface DockerServerConfig {
   instanceUrl: string;
-  username: string;
-  apiToken: string;
   useProxy: boolean;
   defaultSafety: PostSafety | 'all';
   autoPlaySound: boolean;

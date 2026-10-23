@@ -26,6 +26,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const {
     config,
     dockerConfig,
+    currentUser,
+    setIsLoginModalOpen,
     updateConfig,
     resetToDockerDefaults,
     testConnection,
@@ -35,8 +37,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   } = useSzuru();
 
   const [instanceUrl, setInstanceUrl] = useState(config.instanceUrl);
-  const [username, setUsername] = useState(config.username);
-  const [apiToken, setApiToken] = useState(config.apiToken);
   const [useProxy, setUseProxy] = useState(config.useProxy);
   const [autoPlaySound, setAutoPlaySound] = useState(config.autoPlaySound);
   const [defaultSafety, setDefaultSafety] = useState<PostSafety | 'all'>(config.defaultSafety);
@@ -44,8 +44,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
   useEffect(() => {
     setInstanceUrl(config.instanceUrl);
-    setUsername(config.username);
-    setApiToken(config.apiToken);
     setUseProxy(config.useProxy);
     setAutoPlaySound(config.autoPlaySound);
     setDefaultSafety(config.defaultSafety);
@@ -57,8 +55,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     e.preventDefault();
     updateConfig({
       instanceUrl: instanceUrl.trim(),
-      username: username.trim(),
-      apiToken: apiToken.trim(),
       useProxy,
       autoPlaySound,
       defaultSafety,
@@ -71,8 +67,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     setIsTesting(true);
     updateConfig({
       instanceUrl: instanceUrl.trim(),
-      username: username.trim(),
-      apiToken: apiToken.trim(),
       useProxy,
     });
     await testConnection();
@@ -114,7 +108,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   <p className="text-[11px] text-slate-400">
                     {dockerConfig?.instanceUrl
                       ? `Active container default: ${dockerConfig.instanceUrl}`
-                      : 'Configure SZURU_URL, SZURU_USER, and SZURU_TOKEN in docker-compose.yml'}
+                      : 'Configure SZURU_URL in docker-compose.yml'}
                   </p>
                 </div>
               </div>
@@ -153,33 +147,42 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               </p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-slate-400 mb-1 font-medium flex items-center space-x-1">
-                  <User className="w-3 h-3 text-slate-400" />
-                  <span>Username</span>
-                </label>
-                <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="Optional username"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 placeholder-slate-600 focus:outline-none focus:border-pink-500 text-xs"
-                />
+            {/* Active User Session & Multi-User Status */}
+            <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <User className="w-4 h-4 text-pink-400" />
+                  <div>
+                    <span className="font-semibold text-slate-200">Active User Session</span>
+                    <p className="text-[10px] text-slate-400">
+                      Multi-user mode: each user signs in via WebUI
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    setIsLoginModalOpen(true);
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-pink-500/10 hover:bg-pink-500/20 text-pink-400 border border-pink-500/30 text-[11px] font-semibold transition"
+                >
+                  {currentUser ? 'Manage / Switch' : 'Log In'}
+                </button>
               </div>
 
-              <div>
-                <label className="block text-slate-400 mb-1 font-medium flex items-center space-x-1">
-                  <Key className="w-3 h-3 text-slate-400" />
-                  <span>API Token</span>
-                </label>
-                <input
-                  type="password"
-                  value={apiToken}
-                  onChange={(e) => setApiToken(e.target.value)}
-                  placeholder="API token / password"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 placeholder-slate-600 focus:outline-none focus:border-pink-500 font-mono text-xs"
-                />
+              <div className="pt-1.5 border-t border-slate-800/80 flex items-center justify-between text-[11px]">
+                <span className="text-slate-400">Current User:</span>
+                {currentUser ? (
+                  <span className="font-bold text-white flex items-center space-x-1.5">
+                    <span>{currentUser.name}</span>
+                    <span className="px-1.5 py-0.5 rounded text-[9px] uppercase bg-slate-800 text-slate-300 border border-slate-700">
+                      {currentUser.rank || 'Regular'}
+                    </span>
+                  </span>
+                ) : (
+                  <span className="text-slate-500 italic">Browsing Anonymously</span>
+                )}
               </div>
             </div>
 

@@ -10,10 +10,8 @@ const __dirname = path.dirname(__filename);
 const PORT = parseInt(process.env.PORT || '8080', 10);
 const DIST_DIR = path.join(__dirname, 'dist');
 
-// Docker Environment Configuration
+// Docker Environment Configuration (Instance-level; user auth is handled in WebUI for multi-user support)
 const SZURU_URL = (process.env.SZURU_URL || process.env.SZURU_API_URL || '').replace(/\/+$/, '');
-const SZURU_USER = process.env.SZURU_USER || '';
-const SZURU_TOKEN = process.env.SZURU_TOKEN || '';
 const SZURU_USE_PROXY = process.env.SZURU_USE_PROXY !== 'false'; // default true for docker networking/CORS
 const SZURU_DEFAULT_SAFETY = process.env.SZURU_DEFAULT_SAFETY || 'all';
 const SZURU_AUTOPLAY_SOUND = process.env.SZURU_AUTOPLAY_SOUND === 'true';
@@ -107,14 +105,12 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // Docker Environment Configuration endpoint
+  // Docker Environment Configuration endpoint (Instance-level defaults)
   if (pathname === '/api/config' || pathname === '/api/server-info') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(
       JSON.stringify({
         instanceUrl: SZURU_URL,
-        username: SZURU_USER,
-        apiToken: SZURU_TOKEN,
         useProxy: SZURU_USE_PROXY,
         defaultSafety: SZURU_DEFAULT_SAFETY,
         autoPlaySound: SZURU_AUTOPLAY_SOUND,

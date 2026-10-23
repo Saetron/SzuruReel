@@ -14,9 +14,6 @@ services:
       # --- Szurubooru Connection Configuration ---
       # Base URL of your Szurubooru instance (no trailing slash)
       - SZURU_URL=https://booru.example.com
-      # Optional API credentials for authenticated actions (likes, favorites, comments, uploads)
-      - SZURU_USER=
-      - SZURU_TOKEN=
       # Route API requests through the container's built-in proxy (recommended: prevents browser CORS restrictions)
       - SZURU_USE_PROXY=true
       # Default safety filter for feed: all, safe, sketchy, unsafe

@@ -12,6 +12,7 @@ import { PostDetailModal } from './components/PostDetailModal';
 import { UserProfileModal } from './components/UserProfileModal';
 import { UploadModal } from './components/UploadModal';
 import { SettingsModal } from './components/SettingsModal';
+import { LoginModal } from './components/LoginModal';
 import { SearchHelpModal } from './components/SearchHelpModal';
 import { ToastContainer } from './components/Toast';
 import { SzuruPost } from './types/szuru';
@@ -30,6 +31,8 @@ export const AppContent: React.FC = () => {
     setIsUploadOpen,
     isSettingsOpen,
     setIsSettingsOpen,
+    isLoginModalOpen,
+    setIsLoginModalOpen,
     isHelpOpen,
     setIsHelpOpen,
   } = useSzuru();
@@ -143,6 +146,11 @@ export const AppContent: React.FC = () => {
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
+      />
+
+      <LoginModal
+        isOpen={isLoginModalOpen}
+        onClose={() => setIsLoginModalOpen(false)}
       />
 
       <SearchHelpModal

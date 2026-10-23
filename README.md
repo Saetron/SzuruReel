@@ -63,15 +63,16 @@ Built with **React 18**, **TypeScript**, **Tailwind CSS**, and **Vite**, package
 
 ## 🐳 Docker Deployment & Environment Configuration
 
-SzuruReel is configured entirely through standard **Docker environment variables**.
+SzuruReel server and connection defaults are configured through standard **Docker environment variables**. 
+
+> [!NOTE]
+> **Multi-User Authentication**: User credentials (username & API token or password) are **authenticated per-user directly in the WebUI**. Each user accessing SzuruReel can log in to their personal Szurubooru account, switch users, or browse anonymously without credentials being baked into the server container.
 
 ### Environment Variables Reference
 
 | Variable | Description | Default | Example |
 | :--- | :--- | :--- | :--- |
 | `SZURU_URL` | Base URL of your Szurubooru instance (no trailing slash) | *(empty)* | `https://booru.example.com` or `http://szurubooru:8080` |
-| `SZURU_USER` | Username for authenticated actions (likes, favorites, comments, uploads) | *(empty)* | `alice` |
-| `SZURU_TOKEN` | API token / password for the user | *(empty)* | `mysecrettoken` |
 | `SZURU_USE_PROXY` | Route requests through container's built-in CORS proxy | `true` | `true` / `false` |
 | `SZURU_DEFAULT_SAFETY` | Default safety filter | `all` | `all`, `safe`, `sketchy`, `unsafe` |
 | `SZURU_AUTOPLAY_SOUND` | Default video audio playback | `false` | `false` (muted), `true` (unmuted) |
@@ -98,8 +99,6 @@ SzuruReel is configured entirely through standard **Docker environment variables
          - "8080:8080"
        environment:
          - SZURU_URL=https://booru.example.com
-         - SZURU_USER=myusername
-         - SZURU_TOKEN=mysecretapitoken
          - SZURU_USE_PROXY=true
          - SZURU_DEFAULT_SAFETY=all
          - SZURU_AUTOPLAY_SOUND=false
@@ -111,7 +110,7 @@ SzuruReel is configured entirely through standard **Docker environment variables
    docker compose up -d
    ```
 
-4. Open your browser at [http://localhost:8080](http://localhost:8080).
+4. Open your browser at [http://localhost:8080](http://localhost:8080) and click **Log In** to sign into your Szurubooru account.
 
 ---
 
@@ -123,8 +122,6 @@ docker build -t szuru-reel .
 docker run -d \
   -p 8080:8080 \
   -e SZURU_URL="https://booru.example.com" \
-  -e SZURU_USER="myusername" \
-  -e SZURU_TOKEN="mysecretapitoken" \
   --name szuru-reel \
   szuru-reel
 ```

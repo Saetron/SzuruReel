@@ -37,13 +37,11 @@ npm start
 
 ## 🐳 Docker Environment Variables
 
-All configuration is driven via Docker environment variables:
+Server-level and instance connection defaults are driven via Docker environment variables. **User authentication is multi-user and handled dynamically in the WebUI** (each user signs into their own Szurubooru account in their browser):
 
 | Variable | Description | Default |
 | :--- | :--- | :--- |
 | `SZURU_URL` | Base URL of target Szurubooru instance (no trailing slash) | `""` |
-| `SZURU_USER` | API Username | `""` |
-| `SZURU_TOKEN` | API Token / password | `""` |
 | `SZURU_USE_PROXY` | Proxy requests through container backend (`true`/`false`) | `true` |
 | `SZURU_DEFAULT_SAFETY` | Default safety rating (`all`, `safe`, `sketchy`, `unsafe`) | `all` |
 | `SZURU_AUTOPLAY_SOUND` | Default video audio playback (`false` = muted, `true` = unmuted) | `false` |

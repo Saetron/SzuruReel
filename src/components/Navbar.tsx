@@ -16,12 +16,16 @@ import {
   HelpCircle,
   Menu,
   X,
+  User,
+  LogIn,
 } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
   const {
     activeMode,
     setActiveMode,
+    currentUser,
+    setIsLoginModalOpen,
     setIsSettingsOpen,
     setIsUploadOpen,
     setIsHelpOpen,
@@ -118,6 +122,37 @@ export const Navbar: React.FC = () => {
             </span>
           </button>
 
+          {/* User Account / Login Pill */}
+          {currentUser ? (
+            <button
+              onClick={() => setIsLoginModalOpen(true)}
+              className="flex items-center space-x-2 px-2.5 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700/90 border border-slate-700/60 text-xs font-semibold text-white transition shadow-sm"
+              title={`Logged in as ${currentUser.name}. Click to manage account.`}
+            >
+              <div className="w-5 h-5 rounded-lg bg-gradient-to-tr from-pink-500 to-purple-600 flex items-center justify-center text-white text-[11px] font-bold shrink-0 shadow-sm">
+                {currentUser.avatarUrl ? (
+                  <img
+                    src={currentUser.avatarUrl}
+                    alt={currentUser.name}
+                    className="w-full h-full rounded-lg object-cover"
+                  />
+                ) : (
+                  currentUser.name.charAt(0).toUpperCase()
+                )}
+              </div>
+              <span className="max-w-[90px] truncate hidden sm:inline">{currentUser.name}</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => setIsLoginModalOpen(true)}
+              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-pink-500/10 hover:bg-pink-500/20 text-pink-400 border border-pink-500/30 text-xs font-semibold transition shadow-sm"
+              title="Log In with your Szurubooru account"
+            >
+              <LogIn className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Log In</span>
+            </button>
+          )}
+
           {/* Upload Button */}
           <button
             onClick={() => setIsUploadOpen(true)}
@@ -167,6 +202,26 @@ export const Navbar: React.FC = () => {
           ))}
 
           <div className="pt-4 border-t border-slate-800 flex flex-col space-y-2">
+            <button
+              onClick={() => {
+                setIsLoginModalOpen(true);
+                setMobileMenuOpen(false);
+              }}
+              className="flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-semibold text-slate-300 hover:bg-slate-900"
+            >
+              {currentUser ? (
+                <>
+                  <User className="w-5 h-5 text-pink-400" />
+                  <span>Account ({currentUser.name})</span>
+                </>
+              ) : (
+                <>
+                  <LogIn className="w-5 h-5 text-pink-400" />
+                  <span>Log In</span>
+                </>
+              )}
+            </button>
+
             <button
               onClick={() => {
                 setIsHelpOpen(true);
