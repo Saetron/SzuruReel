@@ -164,6 +164,13 @@ function proxyRequest(targetUrl, req, res) {
           }
         }
 
+        if (proxyRes.statusCode === 406 && isMedia && parsedTarget.port === '6666') {
+          console.warn(
+            `[Proxy Warning] ${targetUrl} returned 406 Not Acceptable. Port 6666 is Szurubooru's Waitress API server (JSON only). ` +
+            `To stream media, either set SZURU_MEDIA_URL to your web/Nginx proxy (e.g. http://szurubooru-api.com or https://booru.domain.com) or mount the data volume (-v szurubooru_data:/data:ro).`
+          );
+        }
+
         res.writeHead(proxyRes.statusCode || 200, responseHeaders);
         proxyRes.pipe(res);
       }
