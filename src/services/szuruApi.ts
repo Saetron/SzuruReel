@@ -93,6 +93,7 @@ function mapDanbooruPostToSzuruPost(p: any): SzuruPost {
 export class SzuruApiService {
   private config: AppConfig;
   private dialect: 'auto' | 'szuru' | 'danbooru' = 'auto';
+  private apiPrefix: '/api' | '' = '/api';
   private cachedTags: Map<string, SzuruTag> = new Map();
   private totalCountEstimate = 0;
 
@@ -103,10 +104,16 @@ export class SzuruApiService {
   public updateConfig(config: AppConfig) {
     if (this.config.instanceUrl !== config.instanceUrl) {
       this.dialect = 'auto';
+      this.apiPrefix = '/api';
       this.cachedTags.clear();
       this.totalCountEstimate = 0;
     }
     this.config = config;
+  }
+
+  private endpoint(path: string): string {
+    const clean = path.startsWith('/') ? path : `/${path}`;
+    return `${this.apiPrefix}${clean}`;
   }
 
   private getAuthHeaders(): HeadersInit {
@@ -201,46 +208,89 @@ export class SzuruApiService {
 
   public async getInfo(): Promise<SzuruInstanceInfo> {
     if (this.dialect !== 'danbooru') {
+      // 1. Try with /api prefix first (/api/info)
       try {
-        const info = await this.request<SzuruInstanceInfo>('/api/info');
-        this.dialect = 'szuru';
-        return info;
+        const raw = await this.request<any>('/api/info');
+        if (raw && (raw.config || raw.name || raw.title || raw.postCount !== undefined)) {
+          this.dialect = 'szuru';
+          this.apiPrefix = '/api';
+          return {
+            name: raw.config?.name || raw.name || raw.title || 'Szurubooru',
+            title: raw.config?.name || raw.title || raw.name || 'Szurubooru',
+            version: raw.version || '1.0',
+            contactEmail: raw.config?.contactEmail || raw.contactEmail,
+            totalPosts: raw.postCount ?? raw.totalPosts,
+          };
+        }
+      } catch (err: any) {
+        if (this.dialect === 'szuru') throw err;
+      }
+
+      // 2. Try without /api prefix (/info)
+      try {
+        const raw = await this.request<any>('/info');
+        if (raw && (raw.config || raw.name || raw.title || raw.postCount !== undefined)) {
+          this.dialect = 'szuru';
+          this.apiPrefix = '';
+          return {
+            name: raw.config?.name || raw.name || raw.title || 'Szurubooru',
+            title: raw.config?.name || raw.title || raw.name || 'Szurubooru',
+            version: raw.version || '1.0',
+            contactEmail: raw.config?.contactEmail || raw.contactEmail,
+            totalPosts: raw.postCount ?? raw.totalPosts,
+          };
+        }
       } catch (err: any) {
         if (this.dialect === 'szuru') throw err;
       }
     }
 
+    // 3. Try Danbooru / SzuruRelay endpoint (/health or /counts/posts)
     try {
       const health = await this.request<any>('/health').catch(() => null);
       const counts = await this.request<any>('/counts/posts').catch(() => null);
-      this.dialect = 'danbooru';
-      if (counts?.counts?.posts) {
-        this.totalCountEstimate = counts.counts.posts;
-      }
-      return {
-        name: health?.status === 'healthy' ? 'SzuruRelay' : 'Danbooru API',
-        title: health?.backend_url ? `SzuruRelay (${health.version || '2.0'})` : 'Booru Instance',
-        version: health?.version || '2.1.1',
-        servingFiles: true,
-        totalPosts: this.totalCountEstimate || undefined,
-      };
-    } catch {
-      try {
-        const posts = await this.request<any[]>('/posts?limit=1');
-        if (Array.isArray(posts)) {
-          this.dialect = 'danbooru';
-          return {
-            name: 'Danbooru API',
-            title: 'Booru Instance',
-            version: '1.0',
-            servingFiles: true,
-          };
+      if (health || counts) {
+        this.dialect = 'danbooru';
+        if (counts?.counts?.posts) {
+          this.totalCountEstimate = counts.counts.posts;
         }
-      } catch {
-        // preserve
+        return {
+          name: health?.status === 'healthy' ? 'SzuruRelay' : 'Danbooru API',
+          title: health?.backend_url ? `SzuruRelay (${health.version || '2.0'})` : 'Booru Instance',
+          version: health?.version || '2.1.1',
+          servingFiles: true,
+          totalPosts: this.totalCountEstimate || undefined,
+        };
       }
-      throw new Error('Could not connect to Szurubooru or Danbooru API at this URL.');
+    } catch {
+      // ignore
     }
+
+    // 4. Fallback probe: try /posts?limit=1
+    try {
+      const posts = await this.request<any[]>('/posts?limit=1');
+      if (Array.isArray(posts)) {
+        this.dialect = 'danbooru';
+        return {
+          name: 'Danbooru API',
+          title: 'Booru Instance',
+          version: '1.0',
+          servingFiles: true,
+        };
+      } else if (posts && Array.isArray((posts as any).results)) {
+        this.dialect = 'szuru';
+        this.apiPrefix = '';
+        return {
+          name: 'Szurubooru',
+          title: 'Szurubooru Instance',
+          version: '1.0',
+          totalPosts: (posts as any).total,
+        };
+      }
+    } catch {
+      // preserve
+    }
+    throw new Error('Could not connect to Szurubooru or Danbooru API at this URL.');
   }
 
   // ==================== POSTS ====================
@@ -267,19 +317,31 @@ export class SzuruApiService {
     }
 
     const fullQuery = queryParts.join(' ');
-    const endpoint = `/api/posts/?query=${encodeURIComponent(fullQuery)}&offset=${offset}&limit=${limit}`;
+    const endpointPath = this.endpoint(`/posts/?query=${encodeURIComponent(fullQuery)}&offset=${offset}&limit=${limit}`);
 
     try {
-      const res = await this.request<SzuruSearchResult<SzuruPost>>(endpoint);
+      const res = await this.request<SzuruSearchResult<SzuruPost>>(endpointPath);
       this.dialect = 'szuru';
       return res;
     } catch (err: any) {
       if (
-        this.dialect === 'auto' &&
+        (this.dialect === 'auto' || this.dialect === 'szuru') &&
         (err.status === 404 || err.message?.includes('404') || err.message?.includes('Not Found'))
       ) {
-        this.dialect = 'danbooru';
-        return await this.getDanbooruPosts(params);
+        // Toggle prefix (/api vs '')
+        const altPrefix = this.apiPrefix === '/api' ? '' : '/api';
+        try {
+          const altEndpoint = `${altPrefix}/posts/?query=${encodeURIComponent(fullQuery)}&offset=${offset}&limit=${limit}`;
+          const res = await this.request<SzuruSearchResult<SzuruPost>>(altEndpoint);
+          this.apiPrefix = altPrefix;
+          this.dialect = 'szuru';
+          return res;
+        } catch {
+          if (this.dialect === 'auto') {
+            this.dialect = 'danbooru';
+            return await this.getDanbooruPosts(params);
+          }
+        }
       }
       throw err;
     }
@@ -360,15 +422,25 @@ export class SzuruApiService {
     }
 
     try {
-      return await this.request<SzuruPost>(`/api/post/${id}`);
+      return await this.request<SzuruPost>(this.endpoint(`/post/${id}`));
     } catch (err: any) {
       if (
-        this.dialect === 'auto' &&
+        (this.dialect === 'auto' || this.dialect === 'szuru') &&
         (err.status === 404 || err.message?.includes('404') || err.message?.includes('Not Found'))
       ) {
-        this.dialect = 'danbooru';
-        const raw = await this.request<any>(`/posts/${id}`);
-        return mapDanbooruPostToSzuruPost(raw);
+        const altPrefix = this.apiPrefix === '/api' ? '' : '/api';
+        try {
+          const res = await this.request<SzuruPost>(`${altPrefix}/post/${id}`);
+          this.apiPrefix = altPrefix;
+          this.dialect = 'szuru';
+          return res;
+        } catch {
+          if (this.dialect === 'auto') {
+            this.dialect = 'danbooru';
+            const raw = await this.request<any>(`/posts/${id}`);
+            return mapDanbooruPostToSzuruPost(raw);
+          }
+        }
       }
       throw err;
     }
@@ -386,7 +458,7 @@ export class SzuruApiService {
       flags?: string[];
     }
   ): Promise<SzuruPost> {
-    return await this.request<SzuruPost>(`/api/post/${id}`, {
+    return await this.request<SzuruPost>(this.endpoint(`/post/${id}`), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ version, ...data }),
@@ -394,7 +466,7 @@ export class SzuruApiService {
   }
 
   public async deletePost(id: number, version?: number): Promise<void> {
-    await this.request(`/api/post/${id}`, {
+    await this.request(this.endpoint(`/post/${id}`), {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: version !== undefined ? JSON.stringify({ version }) : undefined,
@@ -402,7 +474,7 @@ export class SzuruApiService {
   }
 
   public async mergePosts(removeId: number, mergeToId: number, replaceContent = false): Promise<void> {
-    await this.request('/api/post-merge', {
+    await this.request(this.endpoint('/post-merge'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -428,9 +500,9 @@ export class SzuruApiService {
     }
 
     if (favorite) {
-      await this.request(`/api/post/${id}/favorite`, { method: 'POST' });
+      await this.request(this.endpoint(`/post/${id}/favorite`), { method: 'POST' });
     } else {
-      await this.request(`/api/post/${id}/favorite`, { method: 'DELETE' });
+      await this.request(this.endpoint(`/post/${id}/favorite`), { method: 'DELETE' });
     }
   }
 
@@ -448,7 +520,7 @@ export class SzuruApiService {
       return score;
     }
 
-    const res = await this.request<{ score: number }>(`/api/post/${id}/score`, {
+    const res = await this.request<{ score: number }>(this.endpoint(`/post/${id}/score`), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ score }),
@@ -478,7 +550,7 @@ export class SzuruApiService {
       formData.append('content', data.file);
       formData.append('metadata', JSON.stringify(metadata));
 
-      const targetUrl = this.getTargetUrl('/api/posts/');
+      const targetUrl = this.getTargetUrl(this.endpoint('/posts/'));
       const headers = { ...this.getAuthHeaders() };
 
       const res = await fetch(targetUrl, {
@@ -494,7 +566,7 @@ export class SzuruApiService {
       return res.json() as Promise<SzuruPost>;
     } else if (data.contentUrl) {
       metadata.contentUrl = data.contentUrl;
-      return await this.request<SzuruPost>('/api/posts/', {
+      return await this.request<SzuruPost>(this.endpoint('/posts/'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(metadata),
@@ -511,7 +583,7 @@ export class SzuruApiService {
     const formData = new FormData();
     formData.append('content', file);
 
-    const targetUrl = this.getTargetUrl('/api/posts/from-image');
+    const targetUrl = this.getTargetUrl(this.endpoint('/posts/from-image'));
     const headers = { ...this.getAuthHeaders() };
 
     const res = await fetch(targetUrl, {
@@ -540,7 +612,7 @@ export class SzuruApiService {
     const query = params.query ? encodeURIComponent(params.query.trim()) : '';
     const offset = params.offset || 0;
     const limit = params.limit || 20;
-    const endpoint = `/api/comments/?query=${query}&offset=${offset}&limit=${limit}`;
+    const endpoint = this.endpoint(`/comments/?query=${query}&offset=${offset}&limit=${limit}`);
     try {
       return await this.request<SzuruSearchResult<SzuruComment>>(endpoint);
     } catch {
@@ -549,7 +621,7 @@ export class SzuruApiService {
   }
 
   public async createComment(postId: number, text: string): Promise<SzuruComment> {
-    return await this.request<SzuruComment>('/api/comments/', {
+    return await this.request<SzuruComment>(this.endpoint('/comments/'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ postId, text }),
@@ -557,7 +629,7 @@ export class SzuruApiService {
   }
 
   public async updateComment(commentId: number, version: number, text: string): Promise<SzuruComment> {
-    return await this.request<SzuruComment>(`/api/comment/${commentId}`, {
+    return await this.request<SzuruComment>(this.endpoint(`/comment/${commentId}`), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ version, text }),
@@ -565,7 +637,7 @@ export class SzuruApiService {
   }
 
   public async deleteComment(commentId: number, version?: number): Promise<void> {
-    await this.request(`/api/comment/${commentId}`, {
+    await this.request(this.endpoint(`/comment/${commentId}`), {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: version !== undefined ? JSON.stringify({ version }) : undefined,
@@ -573,7 +645,7 @@ export class SzuruApiService {
   }
 
   public async setCommentScore(commentId: number, score: number): Promise<number> {
-    const res = await this.request<{ score: number }>(`/api/comment/${commentId}/score`, {
+    const res = await this.request<{ score: number }>(this.endpoint(`/comment/${commentId}/score`), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ score }),
@@ -609,7 +681,7 @@ export class SzuruApiService {
     const limit = params.limit || 20;
     try {
       return await this.request<SzuruSearchResult<SzuruTag>>(
-        `/api/tags/?query=${query}&offset=${offset}&limit=${limit}`
+        this.endpoint(`/tags/?query=${query}&offset=${offset}&limit=${limit}`)
       );
     } catch {
       return { query: params.query || '', offset, limit, total: 0, results: [] };
@@ -632,7 +704,7 @@ export class SzuruApiService {
     }
 
     try {
-      const endpoint = `/api/tags/?query=${encodeURIComponent(query)}&limit=${limit}`;
+      const endpoint = this.endpoint(`/tags/?query=${encodeURIComponent(query)}&limit=${limit}`);
       const res = await this.request<{ results: SzuruTag[] }>(endpoint);
       return res.results || [];
     } catch {
@@ -657,7 +729,7 @@ export class SzuruApiService {
         version: 1,
       };
     }
-    return await this.request<SzuruTag>(`/api/tag/${encodeURIComponent(name)}`);
+    return await this.request<SzuruTag>(this.endpoint(`/tag/${encodeURIComponent(name)}`));
   }
 
   public async createTag(data: {
@@ -666,7 +738,7 @@ export class SzuruApiService {
     suggestions?: string[];
     implications?: string[];
   }): Promise<SzuruTag> {
-    return await this.request<SzuruTag>('/api/tags/', {
+    return await this.request<SzuruTag>(this.endpoint('/tags/'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -683,7 +755,7 @@ export class SzuruApiService {
       implications?: string[];
     }
   ): Promise<SzuruTag> {
-    return await this.request<SzuruTag>(`/api/tag/${encodeURIComponent(name)}`, {
+    return await this.request<SzuruTag>(this.endpoint(`/tag/${encodeURIComponent(name)}`), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ version, ...data }),
@@ -691,7 +763,7 @@ export class SzuruApiService {
   }
 
   public async deleteTag(name: string, version?: number): Promise<void> {
-    await this.request(`/api/tag/${encodeURIComponent(name)}`, {
+    await this.request(this.endpoint(`/tag/${encodeURIComponent(name)}`), {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: version !== undefined ? JSON.stringify({ version }) : undefined,
@@ -703,7 +775,7 @@ export class SzuruApiService {
       return DEFAULT_TAG_CATEGORIES;
     }
     try {
-      const result = await this.request<{ results: SzuruTagCategory[] }>('/api/tag-categories/');
+      const result = await this.request<{ results: SzuruTagCategory[] }>(this.endpoint('/tag-categories/'));
       return result.results && result.results.length > 0 ? result.results : DEFAULT_TAG_CATEGORIES;
     } catch {
       return DEFAULT_TAG_CATEGORIES;
@@ -711,7 +783,7 @@ export class SzuruApiService {
   }
 
   public async createTagCategory(data: { name: string; color: string; order?: number }): Promise<SzuruTagCategory> {
-    return await this.request<SzuruTagCategory>('/api/tag-categories/', {
+    return await this.request<SzuruTagCategory>(this.endpoint('/tag-categories/'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -723,7 +795,7 @@ export class SzuruApiService {
     version: number,
     data: { name?: string; color?: string; order?: number }
   ): Promise<SzuruTagCategory> {
-    return await this.request<SzuruTagCategory>(`/api/tag-category/${encodeURIComponent(name)}`, {
+    return await this.request<SzuruTagCategory>(this.endpoint(`/tag-category/${encodeURIComponent(name)}`), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ version, ...data }),
@@ -731,7 +803,7 @@ export class SzuruApiService {
   }
 
   public async deleteTagCategory(name: string): Promise<void> {
-    await this.request(`/api/tag-category/${encodeURIComponent(name)}`, {
+    await this.request(this.endpoint(`/tag-category/${encodeURIComponent(name)}`), {
       method: 'DELETE',
     });
   }
@@ -751,7 +823,7 @@ export class SzuruApiService {
     const limit = params.limit || 20;
     try {
       return await this.request<SzuruSearchResult<SzuruPool>>(
-        `/api/pools/?query=${query}&offset=${offset}&limit=${limit}`
+        this.endpoint(`/pools/?query=${query}&offset=${offset}&limit=${limit}`)
       );
     } catch {
       return { query: params.query || '', offset, limit, total: 0, results: [] };
@@ -759,7 +831,7 @@ export class SzuruApiService {
   }
 
   public async getPool(id: number): Promise<SzuruPool> {
-    return await this.request<SzuruPool>(`/api/pool/${id}`);
+    return await this.request<SzuruPool>(this.endpoint(`/pool/${id}`));
   }
 
   public async createPool(data: {
@@ -768,7 +840,7 @@ export class SzuruApiService {
     description?: string;
     postIds?: number[];
   }): Promise<SzuruPool> {
-    return await this.request<SzuruPool>('/api/pools/', {
+    return await this.request<SzuruPool>(this.endpoint('/pools/'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -785,7 +857,7 @@ export class SzuruApiService {
       postIds?: number[];
     }
   ): Promise<SzuruPool> {
-    return await this.request<SzuruPool>(`/api/pool/${id}`, {
+    return await this.request<SzuruPool>(this.endpoint(`/pool/${id}`), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ version, ...data }),
@@ -793,7 +865,7 @@ export class SzuruApiService {
   }
 
   public async deletePool(id: number, version?: number): Promise<void> {
-    await this.request(`/api/pool/${id}`, {
+    await this.request(this.endpoint(`/pool/${id}`), {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: version !== undefined ? JSON.stringify({ version }) : undefined,
@@ -805,7 +877,7 @@ export class SzuruApiService {
       return [{ name: 'series', color: '#8b5cf6', default: true }];
     }
     try {
-      const res = await this.request<{ results: SzuruPoolCategory[] }>('/api/pool-categories/');
+      const res = await this.request<{ results: SzuruPoolCategory[] }>(this.endpoint('/pool-categories/'));
       return res.results || [{ name: 'series', color: '#8b5cf6', default: true }];
     } catch {
       return [{ name: 'series', color: '#8b5cf6', default: true }];
@@ -850,9 +922,17 @@ export class SzuruApiService {
     const offset = params.offset || 0;
     const limit = params.limit || 20;
     try {
-      return await this.request<SzuruSearchResult<SzuruFullUser>>(
-        `/api/users/?query=${query}&offset=${offset}&limit=${limit}`
+      const res = await this.request<SzuruSearchResult<any>>(
+        this.endpoint(`/users/?query=${query}&offset=${offset}&limit=${limit}`)
       );
+      return {
+        ...res,
+        results: (res.results || []).map((u: any) => ({
+          ...u,
+          uploadCount: u.uploadedPostCount ?? u.uploadCount ?? 0,
+          favoriteCount: u.favoritePostCount ?? u.favoriteCount ?? 0,
+        })),
+      };
     } catch {
       return { query: params.query || '', offset, limit, total: 0, results: [] };
     }
@@ -905,14 +985,33 @@ export class SzuruApiService {
     }
 
     try {
-      return await this.request<SzuruFullUser>(`/api/user/${encodeURIComponent(name)}`);
+      const raw = await this.request<any>(this.endpoint(`/user/${encodeURIComponent(name)}`));
+      return {
+        ...raw,
+        uploadCount: raw.uploadedPostCount ?? raw.uploadCount ?? 0,
+        favoriteCount: raw.favoritePostCount ?? raw.favoriteCount ?? 0,
+      };
     } catch (err: any) {
       if (
-        this.dialect === 'auto' &&
+        (this.dialect === 'auto' || this.dialect === 'szuru') &&
         (err.status === 404 || err.message?.includes('404') || err.message?.includes('Not Found'))
       ) {
-        this.dialect = 'danbooru';
-        return await this.getUser(name);
+        const altPrefix = this.apiPrefix === '/api' ? '' : '/api';
+        try {
+          const raw = await this.request<any>(`${altPrefix}/user/${encodeURIComponent(name)}`);
+          this.apiPrefix = altPrefix;
+          this.dialect = 'szuru';
+          return {
+            ...raw,
+            uploadCount: raw.uploadedPostCount ?? raw.uploadCount ?? 0,
+            favoriteCount: raw.favoritePostCount ?? raw.favoriteCount ?? 0,
+          };
+        } catch {
+          if (this.dialect === 'auto') {
+            this.dialect = 'danbooru';
+            return await this.getUser(name);
+          }
+        }
       }
       throw err;
     }
@@ -933,7 +1032,7 @@ export class SzuruApiService {
     const limit = params.limit || 30;
     try {
       return await this.request<SzuruSearchResult<SzuruSnapshot>>(
-        `/api/snapshots/?query=${query}&offset=${offset}&limit=${limit}`
+        this.endpoint(`/snapshots/?query=${query}&offset=${offset}&limit=${limit}`)
       );
     } catch {
       return { query: params.query || '', offset, limit, total: 0, results: [] };
