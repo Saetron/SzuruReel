@@ -1,0 +1,150 @@
+name: Manual Deploy & Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version number (e.g. 1.2.0 or v1.2.0)'
+        required: true
+        type: string
+        default: '1.2.0'
+      create_github_release:
+        description: 'Create GitHub Release and Git Tag'
+        required: true
+        type: boolean
+        default: true
+      publish_docker:
+        description: 'Build & push Docker image to GitHub Container Registry (GHCR)'
+        required: true
+        type: boolean
+        default: true
+      set_as_latest:
+        description: 'Tag Docker image as :latest'
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  validate-and-build:
+    name: Typecheck & Build Bundle
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run build
+        run: npm run build
+
+  create-release:
+    name: Create Release & Tag
+    needs: validate-and-build
+    if: ${{ inputs.create_github_release }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Normalize version
+        id: versioning
+        run: |
+          RAW="${{ inputs.version }}"
+          CLEAN="${RAW#v}"
+          TAG="v${CLEAN}"
+          echo "clean_version=${CLEAN}" >> $GITHUB_OUTPUT
+          echo "tag_name=${TAG}" >> $GITHUB_OUTPUT
+
+      - name: Configure Git author
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Create & Push Git Tag
+        env:
+          TAG: ${{ steps.versioning.outputs.tag_name }}
+        run: |
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists, skipping creation."
+          else
+            git tag -a "$TAG" -m "Release $TAG"
+            git push origin "$TAG"
+          fi
+
+      - name: Create GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.versioning.outputs.tag_name }}
+          VERSION: ${{ steps.versioning.outputs.clean_version }}
+        run: |
+          gh release create "$TAG" \
+            --title "SzuruReel v${VERSION}" \
+            --generate-notes \
+            --verify-tag || true
+
+  publish-docker:
+    name: Build & Push Docker Image
+    needs: validate-and-build
+    if: ${{ inputs.publish_docker }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Normalize version and image name
+        id: meta
+        run: |
+          RAW="${{ inputs.version }}"
+          CLEAN="${RAW#v}"
+          REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          IMAGE="ghcr.io/${REPO_LOWER}"
+          echo "version=${CLEAN}" >> $GITHUB_OUTPUT
+          echo "image=${IMAGE}" >> $GITHUB_OUTPUT
+
+      - name: Set up QEMU (multi-architecture)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate Docker tags
+        id: tags
+        run: |
+          IMAGE="${{ steps.meta.outputs.image }}"
+          VERSION="${{ steps.meta.outputs.version }}"
+          TAGS="${IMAGE}:${VERSION},${IMAGE}:v${VERSION}"
+          if [ "${{ inputs.set_as_latest }}" = "true" ]; then
+            TAGS="${TAGS},${IMAGE}:latest"
+          fi
+          echo "tags=${TAGS}" >> $GITHUB_OUTPUT
+
+      - name: Build and push multi-arch Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
