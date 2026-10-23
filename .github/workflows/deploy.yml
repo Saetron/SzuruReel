@@ -87,16 +87,21 @@ jobs:
             git push origin "$TAG"
           fi
 
-      - name: Create GitHub Release
+      - name: Create or Update GitHub Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.versioning.outputs.tag_name }}
           VERSION: ${{ steps.versioning.outputs.clean_version }}
         run: |
-          gh release create "$TAG" \
-            --title "SzuruReel v${VERSION}" \
-            --generate-notes \
-            --verify-tag || true
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG exists, updating notes and title..."
+            gh release edit "$TAG" --title "SzuruReel v${VERSION}" --generate-notes
+          else
+            gh release create "$TAG" \
+              --title "SzuruReel v${VERSION}" \
+              --generate-notes \
+              --verify-tag
+          fi
 
   publish-docker:
     name: Build & Push Docker Image
