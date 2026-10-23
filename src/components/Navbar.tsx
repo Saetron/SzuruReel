@@ -22,6 +22,7 @@ import {
 
 export const Navbar: React.FC = () => {
   const {
+    api,
     activeMode,
     setActiveMode,
     currentUser,
@@ -132,7 +133,7 @@ export const Navbar: React.FC = () => {
               <div className="w-5 h-5 rounded-lg bg-gradient-to-tr from-pink-500 to-purple-600 flex items-center justify-center text-white text-[11px] font-bold shrink-0 shadow-sm">
                 {currentUser.avatarUrl ? (
                   <img
-                    src={currentUser.avatarUrl}
+                    src={api.resolveMediaUrl(currentUser.avatarUrl)}
                     alt={currentUser.name}
                     className="w-full h-full rounded-lg object-cover"
                   />

@@ -257,7 +257,7 @@ export const ReelItem: React.FC<ReelItemProps> = ({
         <div className="relative group cursor-pointer" onClick={() => onOpenDetails(post)}>
           <div className="w-12 h-12 rounded-full border-2 border-pink-500 overflow-hidden bg-slate-800 shadow-lg flex items-center justify-center text-white font-bold text-sm">
             {post.user?.avatarUrl ? (
-              <img src={post.user.avatarUrl} alt={post.user.name} className="w-full h-full object-cover" />
+              <img src={api.resolveMediaUrl(post.user.avatarUrl)} alt={post.user.name} className="w-full h-full object-cover" />
             ) : (
               post.user?.name?.slice(0, 1).toUpperCase() || 'S'
             )}

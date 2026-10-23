@@ -23,7 +23,7 @@ interface LoginModalProps {
 }
 
 export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
-  const { currentUser, login, logout, config, showToast } = useSzuru();
+  const { api, currentUser, login, logout, config, showToast } = useSzuru();
 
   const [username, setUsername] = useState('');
   const [apiToken, setApiToken] = useState('');
@@ -122,7 +122,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
                 <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-pink-500 to-purple-600 flex items-center justify-center text-white text-lg font-black shrink-0 shadow-md">
                   {currentUser.avatarUrl ? (
                     <img
-                      src={currentUser.avatarUrl}
+                      src={api.resolveMediaUrl(currentUser.avatarUrl)}
                       alt={currentUser.name}
                       className="w-full h-full rounded-xl object-cover"
                     />

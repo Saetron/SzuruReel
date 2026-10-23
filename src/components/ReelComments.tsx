@@ -95,7 +95,7 @@ export const ReelComments: React.FC<ReelCommentsProps> = ({
               <div key={c.id} className="flex items-start space-x-3 text-sm">
                 <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-pink-500 to-purple-500 flex items-center justify-center text-white font-bold text-xs shrink-0 overflow-hidden shadow">
                   {c.user?.avatarUrl ? (
-                    <img src={c.user.avatarUrl} alt={c.user.name} className="w-full h-full object-cover" />
+                    <img src={api.resolveMediaUrl(c.user.avatarUrl)} alt={c.user.name} className="w-full h-full object-cover" />
                   ) : (
                     c.user?.name?.slice(0, 1).toUpperCase() || 'U'
                   )}

@@ -35,6 +35,8 @@ export const GalleryMode: React.FC<GalleryModeProps> = ({
     connectionStatus,
     setIsSettingsOpen,
     showToast,
+    setGalleryPosts,
+    setLoadMoreGalleryPosts,
   } = useSzuru();
 
   const [posts, setPosts] = useState<SzuruPost[]>([]);
@@ -92,6 +94,40 @@ export const GalleryMode: React.FC<GalleryModeProps> = ({
   useEffect(() => {
     fetchPosts(0, true);
   }, [fetchPosts]);
+
+  // Sync loaded posts with context for post detail next/prev navigation
+  useEffect(() => {
+    setGalleryPosts(posts);
+  }, [posts, setGalleryPosts]);
+
+  // Expose loadMore function to context for next-post keyboard scrolling
+  useEffect(() => {
+    if (hasMore && !isLoading) {
+      setLoadMoreGalleryPosts(() => () => fetchPosts(posts.length));
+    } else {
+      setLoadMoreGalleryPosts(null);
+    }
+  }, [hasMore, isLoading, posts.length, fetchPosts, setLoadMoreGalleryPosts]);
+
+  // Infinite Scroll IntersectionObserver
+  const observerTarget = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const target = observerTarget.current;
+    if (!target) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !isLoading) {
+          fetchPosts(posts.length);
+        }
+      },
+      { rootMargin: '400px' }
+    );
+
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [hasMore, isLoading, posts.length, fetchPosts]);
 
   // Handle tag autocomplete
   const handleSearchChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -321,7 +357,7 @@ export const GalleryMode: React.FC<GalleryModeProps> = ({
           </div>
         )}
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
+        <div className="columns-2 sm:columns-3 md:columns-4 lg:columns-5 xl:columns-6 gap-3 sm:gap-4 [column-fill:_balance]">
           {posts.map((post) => {
             const isVideo =
               post.type === 'video' ||
@@ -333,11 +369,25 @@ export const GalleryMode: React.FC<GalleryModeProps> = ({
             return (
               <div
                 key={post.id}
-                className="group relative bg-slate-900/60 border border-slate-800/80 rounded-2xl overflow-hidden shadow-lg hover:shadow-pink-500/10 hover:border-slate-700 transition-all duration-300 flex flex-col"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onOpenDetails(post);
+                  }
+                }}
+                className="break-inside-avoid mb-3 sm:mb-4 group relative bg-slate-900/60 border border-slate-800/80 rounded-2xl overflow-hidden shadow-lg hover:shadow-pink-500/10 hover:border-slate-700 focus:outline-none focus:ring-2 focus:ring-pink-500/50 transition-all duration-300 flex flex-col"
               >
                 {/* Media thumbnail */}
                 <div
-                  className="relative aspect-[3/4] bg-slate-950 overflow-hidden cursor-pointer"
+                  className="relative w-full bg-slate-950 overflow-hidden cursor-pointer"
+                  style={{
+                    aspectRatio:
+                      post.canvasWidth && post.canvasHeight
+                        ? `${post.canvasWidth} / ${post.canvasHeight}`
+                        : undefined,
+                    maxHeight: '650px',
+                  }}
                   onClick={() => onOpenDetails(post)}
                 >
                   <img
@@ -404,25 +454,18 @@ export const GalleryMode: React.FC<GalleryModeProps> = ({
           })}
         </div>
 
-        {/* Load more button / Infinite loader */}
-        {hasMore && (
-          <div className="mt-10 flex justify-center">
-            <button
-              onClick={() => fetchPosts(posts.length)}
-              disabled={isLoading}
-              className="px-6 py-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 text-slate-200 font-semibold text-xs transition-colors flex items-center space-x-2 shadow-lg disabled:opacity-50"
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin text-pink-500" />
-                  <span>Loading posts...</span>
-                </>
-              ) : (
-                <span>Load More Posts</span>
-              )}
-            </button>
-          </div>
-        )}
+        {/* Infinite Scroll Sentinel & Loading Indicator */}
+        <div ref={observerTarget} className="mt-8 mb-4 flex flex-col items-center justify-center min-h-[50px]">
+          {isLoading && (
+            <div className="flex items-center space-x-2 text-slate-400 text-xs py-2 px-4 rounded-full bg-slate-900/80 border border-slate-800 shadow-md">
+              <Loader2 className="w-4 h-4 animate-spin text-pink-500" />
+              <span>Loading more posts...</span>
+            </div>
+          )}
+          {!hasMore && posts.length > 0 && !isLoading && (
+            <span className="text-xs text-slate-500 select-none">You've reached the end</span>
+          )}
+        </div>
       </div>
 
       {/* Floating scroll to top button */}

@@ -61,6 +61,8 @@ export const AppContent: React.FC = () => {
     setSearchQuery,
     selectedPost,
     setSelectedPost,
+    galleryPosts,
+    loadMoreGalleryPosts,
     selectedUserName,
     setSelectedUserName,
     setReelInitialPostId,
@@ -110,6 +112,28 @@ export const AppContent: React.FC = () => {
     setReelInitialPostId(postId);
     setActiveMode('reel');
   }, [setReelInitialPostId, setActiveMode]);
+
+  const currentPostIndex = selectedPost
+    ? galleryPosts.findIndex((p) => p.id === selectedPost.id)
+    : -1;
+
+  const hasPrev = currentPostIndex > 0;
+  const hasNext = currentPostIndex !== -1 && currentPostIndex < galleryPosts.length - 1;
+
+  const handleNavigatePrev = useCallback(() => {
+    if (currentPostIndex > 0) {
+      setSelectedPost(galleryPosts[currentPostIndex - 1]);
+    }
+  }, [currentPostIndex, galleryPosts, setSelectedPost]);
+
+  const handleNavigateNext = useCallback(() => {
+    if (currentPostIndex !== -1 && currentPostIndex < galleryPosts.length - 1) {
+      setSelectedPost(galleryPosts[currentPostIndex + 1]);
+      if (currentPostIndex >= galleryPosts.length - 4 && loadMoreGalleryPosts) {
+        loadMoreGalleryPosts();
+      }
+    }
+  }, [currentPostIndex, galleryPosts, loadMoreGalleryPosts, setSelectedPost]);
 
   // Initial Route Hydration (Handles direct page loads/refreshes like /tags, /post/123, /gallery)
   useEffect(() => {
@@ -235,6 +259,12 @@ export const AppContent: React.FC = () => {
           onClose={() => setSelectedPost(null)}
           onOpenInReel={handleOpenInReel}
           onPostUpdated={(updated) => setSelectedPost(updated)}
+          hasPrev={hasPrev}
+          hasNext={hasNext}
+          onNavigatePrev={handleNavigatePrev}
+          onNavigateNext={handleNavigateNext}
+          currentIndex={currentPostIndex !== -1 ? currentPostIndex : undefined}
+          totalPosts={galleryPosts.length > 0 && currentPostIndex !== -1 ? galleryPosts.length : undefined}
         />
       )}
 

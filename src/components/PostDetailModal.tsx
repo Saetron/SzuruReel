@@ -38,6 +38,12 @@ interface PostDetailModalProps {
   onOpenInReel: (postId: number) => void;
   onPostUpdated?: (updated: SzuruPost) => void;
   onPostDeleted?: (postId: number) => void;
+  onNavigateNext?: () => void;
+  onNavigatePrev?: () => void;
+  hasNext?: boolean;
+  hasPrev?: boolean;
+  currentIndex?: number;
+  totalPosts?: number;
 }
 
 export const PostDetailModal: React.FC<PostDetailModalProps> = ({
@@ -46,6 +52,12 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
   onOpenInReel,
   onPostUpdated,
   onPostDeleted,
+  onNavigateNext,
+  onNavigatePrev,
+  hasNext = false,
+  hasPrev = false,
+  currentIndex,
+  totalPosts,
 }) => {
   const { api, showToast, setSearchQuery, setActiveMode, setSelectedPoolId, setSelectedUserName } = useSzuru();
 
@@ -93,17 +105,63 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
 
   const mediaUrl = api.resolveMediaUrl(post.contentUrl);
 
-  // Reload full post details (with relations, notes, pools) on mount
+  // Reload full post details (with relations, notes, pools) on mount or when post changes
   useEffect(() => {
+    setPost(initialPost);
+    setNotes(initialPost.notes || []);
+    setComments(initialPost.comments || []);
+    setIsLiked(initialPost.ownScore === 1);
+    setScore(initialPost.score);
+    setIsFavorited(!!initialPost.ownFavorite);
+
+    let isCurrent = true;
     api.getPost(initialPost.id).then((fullPost) => {
-      setPost(fullPost);
-      setNotes(fullPost.notes || []);
-      setComments(fullPost.comments || []);
-      setIsLiked(fullPost.ownScore === 1);
-      setScore(fullPost.score);
-      setIsFavorited(!!fullPost.ownFavorite);
+      if (isCurrent) {
+        setPost(fullPost);
+        setNotes(fullPost.notes || []);
+        setComments(fullPost.comments || []);
+        setIsLiked(fullPost.ownScore === 1);
+        setScore(fullPost.score);
+        setIsFavorited(!!fullPost.ownFavorite);
+      }
     }).catch(() => {});
-  }, [api, initialPost.id]);
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [api, initialPost]);
+
+  // Keyboard navigation (ArrowLeft / ArrowRight to switch posts, Escape to close)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target?.isContentEditable
+      ) {
+        return;
+      }
+
+      if (e.key === 'ArrowRight' || e.key === 'j' || e.key === 'J') {
+        if (hasNext && onNavigateNext) {
+          e.preventDefault();
+          onNavigateNext();
+        }
+      } else if (e.key === 'ArrowLeft' || e.key === 'k' || e.key === 'K') {
+        if (hasPrev && onNavigatePrev) {
+          e.preventDefault();
+          onNavigatePrev();
+        }
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [hasNext, hasPrev, onNavigateNext, onNavigatePrev, onClose]);
 
   const handleLike = async () => {
     const nextScore = isLiked ? 0 : 1;
@@ -434,7 +492,43 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
                 </button>
               </>
             )}
+
+            {currentIndex !== undefined && totalPosts !== undefined && (
+              <span className="text-xs font-medium text-slate-300 bg-black/50 px-2.5 py-1 rounded-xl backdrop-blur-md border border-white/10 select-none">
+                {currentIndex + 1} / {totalPosts}
+              </span>
+            )}
           </div>
+
+          {/* Previous Post Button */}
+          {hasPrev && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onNavigatePrev?.();
+              }}
+              className="absolute left-3 top-1/2 -translate-y-1/2 p-2.5 sm:p-3 rounded-full bg-slate-900/80 hover:bg-slate-800 text-white border border-slate-700/60 shadow-2xl backdrop-blur-md transition-all active:scale-90 z-30 group"
+              title="Previous post (Left Arrow / K)"
+              aria-label="Previous post"
+            >
+              <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6 transition-transform group-hover:-translate-x-0.5" />
+            </button>
+          )}
+
+          {/* Next Post Button */}
+          {hasNext && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onNavigateNext?.();
+              }}
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-2.5 sm:p-3 rounded-full bg-slate-900/80 hover:bg-slate-800 text-white border border-slate-700/60 shadow-2xl backdrop-blur-md transition-all active:scale-90 z-30 group"
+              title="Next post (Right Arrow / J)"
+              aria-label="Next post"
+            >
+              <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6 transition-transform group-hover:translate-x-0.5" />
+            </button>
+          )}
 
           {/* Media Viewport */}
           <div

@@ -29,6 +29,10 @@ interface SzuruContextType {
   setSafetyFilter: (s: PostSafety | 'all') => void;
   selectedPost: SzuruPost | null;
   setSelectedPost: (p: SzuruPost | null) => void;
+  galleryPosts: SzuruPost[];
+  setGalleryPosts: React.Dispatch<React.SetStateAction<SzuruPost[]>>;
+  loadMoreGalleryPosts: (() => void) | null;
+  setLoadMoreGalleryPosts: (fn: (() => void) | null) => void;
   selectedUserName: string | null;
   setSelectedUserName: (name: string | null) => void;
   selectedPoolId: number | null;
@@ -106,6 +110,8 @@ export const SzuruProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [searchQuery, setSearchQuery] = useState('');
   const [safetyFilter, setSafetyFilter] = useState<PostSafety | 'all'>('all');
   const [selectedPost, setSelectedPost] = useState<SzuruPost | null>(null);
+  const [galleryPosts, setGalleryPosts] = useState<SzuruPost[]>([]);
+  const [loadMoreGalleryPosts, setLoadMoreGalleryPosts] = useState<(() => void) | null>(null);
   const [selectedUserName, setSelectedUserName] = useState<string | null>(null);
   const [selectedPoolId, setSelectedPoolId] = useState<number | null>(null);
   const [reelInitialPostId, setReelInitialPostId] = useState<number | null>(null);
@@ -323,6 +329,10 @@ export const SzuruProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setSafetyFilter,
         selectedPost,
         setSelectedPost,
+        galleryPosts,
+        setGalleryPosts,
+        loadMoreGalleryPosts,
+        setLoadMoreGalleryPosts,
         selectedUserName,
         setSelectedUserName,
         selectedPoolId,

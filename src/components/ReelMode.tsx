@@ -10,6 +10,7 @@ import {
   Flame,
   Volume2,
   VolumeX,
+  Shuffle,
   Server,
   Settings as SettingsIcon,
 } from 'lucide-react';
@@ -38,6 +39,7 @@ export const ReelMode: React.FC<ReelModeProps> = ({ onOpenDetails }) => {
   const [hasMore, setHasMore] = useState<boolean>(true);
   const [isMuted, setIsMuted] = useState<boolean>(!config.autoPlaySound);
   const [videoOnlyFilter, setVideoOnlyFilter] = useState<boolean>(false);
+  const [isRandomMode, setIsRandomMode] = useState<boolean>(false);
 
   // Load initial batch of posts
   const fetchPosts = useCallback(
@@ -47,6 +49,9 @@ export const ReelMode: React.FC<ReelModeProps> = ({ onOpenDetails }) => {
         let q = searchQuery.trim();
         if (videoOnlyFilter) {
           q = q ? `${q} type:video` : 'type:video';
+        }
+        if (isRandomMode) {
+          q = q ? `${q} sort:random` : 'sort:random';
         }
 
         const res = await api.getPosts({
@@ -74,7 +79,7 @@ export const ReelMode: React.FC<ReelModeProps> = ({ onOpenDetails }) => {
         setIsLoading(false);
       }
     },
-    [api, searchQuery, safetyFilter, videoOnlyFilter, showToast]
+    [api, searchQuery, safetyFilter, videoOnlyFilter, isRandomMode, showToast]
   );
 
   useEffect(() => {
@@ -212,6 +217,22 @@ export const ReelMode: React.FC<ReelModeProps> = ({ onOpenDetails }) => {
         </button>
 
         <button
+          onClick={() => {
+            setIsRandomMode(!isRandomMode);
+            setPosts([]);
+          }}
+          className={`flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all ${
+            isRandomMode
+              ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
+              : 'text-slate-300 hover:text-white hover:bg-white/10'
+          }`}
+          title={isRandomMode ? 'Random Shuffle Active' : 'Enable Random Shuffle'}
+        >
+          <Shuffle className="w-3.5 h-3.5" />
+          <span>Random</span>
+        </button>
+
+        <button
           onClick={() => setIsMuted(!isMuted)}
           className={`p-1.5 rounded-full text-xs font-semibold transition-all ${
             !isMuted
@@ -225,22 +246,27 @@ export const ReelMode: React.FC<ReelModeProps> = ({ onOpenDetails }) => {
       </div>
 
       {/* Desktop Next/Prev floating control buttons */}
-      <div className="hidden md:flex flex-col space-y-3 absolute right-8 top-1/2 -translate-y-1/2 z-30">
+      <div className="hidden md:flex items-center space-x-1 absolute right-4 top-4 z-30 backdrop-blur-md bg-black/40 p-1.5 rounded-full border border-white/10 shadow-lg">
         <button
           onClick={handlePrev}
           disabled={activeIndex === 0}
-          className="p-3 rounded-full bg-slate-900/70 hover:bg-slate-800 text-white border border-slate-700/50 backdrop-blur-md disabled:opacity-30 disabled:pointer-events-none transition-all duration-200 active:scale-90 shadow-xl"
+          className="p-1.5 rounded-full text-slate-300 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:pointer-events-none transition-all active:scale-90"
           aria-label="Previous reel"
+          title="Previous Reel (Up Arrow / K)"
         >
-          <ChevronUp className="w-6 h-6" />
+          <ChevronUp className="w-4 h-4" />
         </button>
+        <span className="text-[11px] font-semibold text-slate-400 px-1 select-none">
+          {posts.length > 0 ? `${activeIndex + 1} / ${posts.length}` : ''}
+        </span>
         <button
           onClick={handleNext}
           disabled={activeIndex === posts.length - 1}
-          className="p-3 rounded-full bg-slate-900/70 hover:bg-slate-800 text-white border border-slate-700/50 backdrop-blur-md disabled:opacity-30 disabled:pointer-events-none transition-all duration-200 active:scale-90 shadow-xl"
+          className="p-1.5 rounded-full text-slate-300 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:pointer-events-none transition-all active:scale-90"
           aria-label="Next reel"
+          title="Next Reel (Down Arrow / J)"
         >
-          <ChevronDown className="w-6 h-6" />
+          <ChevronDown className="w-4 h-4" />
         </button>
       </div>
 

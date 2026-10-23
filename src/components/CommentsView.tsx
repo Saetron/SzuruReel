@@ -149,7 +149,7 @@ export const CommentsView: React.FC<CommentsViewProps> = ({ onOpenPost, onOpenUs
                         className="w-7 h-7 rounded-full bg-slate-800 overflow-hidden flex items-center justify-center text-xs font-bold text-white cursor-pointer hover:ring-2 hover:ring-pink-500 transition"
                       >
                         {comment.user.avatarUrl ? (
-                          <img src={comment.user.avatarUrl} alt={comment.user.name} className="w-full h-full object-cover" />
+                          <img src={api.resolveMediaUrl(comment.user.avatarUrl)} alt={comment.user.name} className="w-full h-full object-cover" />
                         ) : (
                           comment.user.name?.slice(0, 1).toUpperCase() || 'U'
                         )}
