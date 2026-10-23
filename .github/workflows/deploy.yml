@@ -23,6 +23,9 @@ on:
         required: true
         type: boolean
         default: true
+  push:
+    tags:
+      - 'v*'
 
 permissions:
   contents: write
@@ -36,7 +39,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js 22
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -51,7 +54,7 @@ jobs:
   create-release:
     name: Create Release & Tag
     needs: validate-and-build
-    if: ${{ inputs.create_github_release }}
+    if: ${{ github.event_name == 'push' || inputs.create_github_release }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -62,7 +65,7 @@ jobs:
       - name: Normalize version
         id: versioning
         run: |
-          RAW="${{ inputs.version }}"
+          RAW="${{ inputs.version || github.ref_name }}"
           CLEAN="${RAW#v}"
           TAG="v${CLEAN}"
           echo "clean_version=${CLEAN}" >> $GITHUB_OUTPUT
@@ -98,7 +101,7 @@ jobs:
   publish-docker:
     name: Build & Push Docker Image
     needs: validate-and-build
-    if: ${{ inputs.publish_docker }}
+    if: ${{ github.event_name == 'push' || inputs.publish_docker }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -107,7 +110,7 @@ jobs:
       - name: Normalize version and image name
         id: meta
         run: |
-          RAW="${{ inputs.version }}"
+          RAW="${{ inputs.version || github.ref_name }}"
           CLEAN="${RAW#v}"
           REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
           IMAGE="ghcr.io/${REPO_LOWER}"
@@ -133,7 +136,7 @@ jobs:
           IMAGE="${{ steps.meta.outputs.image }}"
           VERSION="${{ steps.meta.outputs.version }}"
           TAGS="${IMAGE}:${VERSION},${IMAGE}:v${VERSION}"
-          if [ "${{ inputs.set_as_latest }}" = "true" ]; then
+          if [ "${{ github.event_name == 'push' || inputs.set_as_latest }}" = "true" ]; then
             TAGS="${TAGS},${IMAGE}:latest"
           fi
           echo "tags=${TAGS}" >> $GITHUB_OUTPUT
