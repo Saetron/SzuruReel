@@ -164,7 +164,7 @@ npm start # runs the lightweight server on port 8080
 ├── docker-compose.yml      # Docker Compose setup
 ├── server.js               # Lightweight Node.js server with CORS proxy & env configuration
 ├── package.json
-├── LICENSE.txt             # European Union Public Licence (EUPL-1.2)
+├── LICENSE                 # European Union Public Licence (EUPL-1.2)
 ├── vite.config.ts
 ├── src/
 │   ├── types/
@@ -191,4 +191,4 @@ npm start # runs the lightweight server on port 8080
 ---
 
 ## 🔒 License
-This project is licensed under the [European Union Public Licence (EUPL-1.2)](LICENSE.txt).
+This project is licensed under the [European Union Public Licence (EUPL-1.2)](LICENSE).
