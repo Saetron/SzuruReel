@@ -8,27 +8,36 @@ interface ToastItem {
   type: 'info' | 'success' | 'error';
 }
 
+export type AppNavMode = 'reel' | 'gallery' | 'pools' | 'tags' | 'comments' | 'users' | 'snapshots';
+
 interface SzuruContextType {
   config: AppConfig;
   dockerConfig: DockerServerConfig | null;
   updateConfig: (newConfig: Partial<AppConfig>) => void;
   resetToDockerDefaults: () => void;
   api: SzuruApiService;
-  activeMode: 'reel' | 'gallery' | 'tags';
-  setActiveMode: (mode: 'reel' | 'gallery' | 'tags') => void;
+  activeMode: AppNavMode;
+  setActiveMode: (mode: AppNavMode) => void;
   searchQuery: string;
   setSearchQuery: (q: string) => void;
   safetyFilter: PostSafety | 'all';
   setSafetyFilter: (s: PostSafety | 'all') => void;
   selectedPost: SzuruPost | null;
   setSelectedPost: (p: SzuruPost | null) => void;
+  selectedUserName: string | null;
+  setSelectedUserName: (name: string | null) => void;
+  selectedPoolId: number | null;
+  setSelectedPoolId: (id: number | null) => void;
   reelInitialPostId: number | null;
   setReelInitialPostId: (id: number | null) => void;
   isSettingsOpen: boolean;
   setIsSettingsOpen: (open: boolean) => void;
   isUploadOpen: boolean;
   setIsUploadOpen: (open: boolean) => void;
+  isHelpOpen: boolean;
+  setIsHelpOpen: (open: boolean) => void;
   tagCategories: SzuruTagCategory[];
+  refreshTagCategories: () => Promise<void>;
   connectionStatus: 'connected' | 'error' | 'testing' | 'unconfigured';
   instanceInfo: SzuruInstanceInfo | null;
   testConnection: () => Promise<boolean>;
@@ -64,13 +73,16 @@ export const SzuruProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return DEFAULT_CONFIG;
   });
 
-  const [activeMode, setActiveMode] = useState<'reel' | 'gallery' | 'tags'>('reel');
+  const [activeMode, setActiveMode] = useState<AppNavMode>('reel');
   const [searchQuery, setSearchQuery] = useState('');
   const [safetyFilter, setSafetyFilter] = useState<PostSafety | 'all'>('all');
   const [selectedPost, setSelectedPost] = useState<SzuruPost | null>(null);
+  const [selectedUserName, setSelectedUserName] = useState<string | null>(null);
+  const [selectedPoolId, setSelectedPoolId] = useState<number | null>(null);
   const [reelInitialPostId, setReelInitialPostId] = useState<number | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [tagCategories, setTagCategories] = useState<SzuruTagCategory[]>(DEFAULT_TAG_CATEGORIES);
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'error' | 'testing' | 'unconfigured'>('unconfigured');
   const [instanceInfo, setInstanceInfo] = useState<SzuruInstanceInfo | null>(null);
@@ -122,6 +134,15 @@ export const SzuruProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [dockerConfig, showToast]);
 
+  const refreshTagCategories = useCallback(async () => {
+    try {
+      const cats = await api.getTagCategories();
+      setTagCategories(cats);
+    } catch {
+      // ignore
+    }
+  }, [api]);
+
   const testConnection = useCallback(async (): Promise<boolean> => {
     if (!config.instanceUrl || !config.instanceUrl.trim()) {
       setConnectionStatus('unconfigured');
@@ -136,15 +157,14 @@ export const SzuruProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setConnectionStatus('connected');
       showToast(`Connected to ${info.name || info.title || 'Szurubooru'}!`, 'success');
 
-      // Fetch categories in background
-      api.getTagCategories().then(setTagCategories).catch(() => {});
+      refreshTagCategories();
       return true;
     } catch (err: any) {
       setConnectionStatus('error');
       showToast(`Connection failed: ${err.message || 'Check URL/credentials'}`, 'error');
       return false;
     }
-  }, [api, config.instanceUrl, showToast]);
+  }, [api, config.instanceUrl, refreshTagCategories, showToast]);
 
   // Load Docker environment variables from server endpoint
   useEffect(() => {
@@ -154,7 +174,6 @@ export const SzuruProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         if (data) {
           setDockerConfig(data);
 
-          // If no custom config is saved in localStorage, or if instanceUrl is currently empty
           const hasLocalConfig = Boolean(localStorage.getItem('szuru_reel_config'));
           if (!hasLocalConfig && data.instanceUrl) {
             setConfig({
@@ -200,13 +219,20 @@ export const SzuruProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setSafetyFilter,
         selectedPost,
         setSelectedPost,
+        selectedUserName,
+        setSelectedUserName,
+        selectedPoolId,
+        setSelectedPoolId,
         reelInitialPostId,
         setReelInitialPostId,
         isSettingsOpen,
         setIsSettingsOpen,
         isUploadOpen,
         setIsUploadOpen,
+        isHelpOpen,
+        setIsHelpOpen,
         tagCategories,
+        refreshTagCategories,
         connectionStatus,
         instanceInfo,
         testConnection,

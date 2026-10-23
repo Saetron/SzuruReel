@@ -1,5 +1,6 @@
 export type PostSafety = 'safe' | 'sketchy' | 'unsafe';
 export type PostType = 'image' | 'animation' | 'video' | 'flash';
+export type UserRank = 'anonymous' | 'regular' | 'power' | 'moderator' | 'administrator';
 
 export interface SzuruTagRef {
   names: string[];
@@ -17,8 +18,21 @@ export interface SzuruTagCategory {
 export interface SzuruUser {
   name: string;
   avatarUrl?: string;
-  rank?: string;
+  rank?: UserRank | string;
   creationTime?: string;
+}
+
+export interface SzuruFullUser extends SzuruUser {
+  email?: string;
+  lastLoginTime?: string;
+  uploadCount?: number;
+  favoriteCount?: number;
+  commentCount?: number;
+}
+
+export interface SzuruNote {
+  polygon: [number, number][]; // 4 points: [[x1, y1], [x2, y2], [x3, y3], [x4, y4]]
+  text: string;
 }
 
 export interface SzuruComment {
@@ -30,6 +44,37 @@ export interface SzuruComment {
   text: string;
   score: number;
   ownScore?: number;
+  post?: SzuruPost | { id: number; thumbnailUrl?: string; contentUrl?: string; type?: PostType };
+  postId?: number;
+}
+
+export interface SzuruPoolPostRef {
+  id: number;
+  thumbnailUrl?: string;
+  contentUrl?: string;
+  type?: PostType;
+  safety?: PostSafety;
+}
+
+export interface SzuruPool {
+  id: number;
+  version: number;
+  category: string;
+  names: string[];
+  description?: string;
+  posts: (SzuruPost | SzuruPoolPostRef)[];
+  postCount?: number;
+}
+
+export interface SzuruPoolCategory {
+  name: string;
+  color?: string;
+  default?: boolean;
+}
+
+export interface SzuruPostRelation {
+  id: number;
+  type?: string;
 }
 
 export interface SzuruPost {
@@ -49,8 +94,10 @@ export interface SzuruPost {
   thumbnailUrl: string;
   flags: string[];
   tags: SzuruTagRef[];
-  relations?: { id: number; type?: string }[];
+  relations?: SzuruPostRelation[];
+  notes?: SzuruNote[];
   comments?: SzuruComment[];
+  pools?: SzuruPool[];
   score: number;
   ownScore?: number;
   ownFavorite?: boolean;
@@ -69,8 +116,19 @@ export interface SzuruTag {
   names: string[];
   category: string;
   usages: number;
+  version?: number;
   suggestions?: string[];
   implications?: string[];
+}
+
+export interface SzuruSnapshot {
+  id: number;
+  operation: 'created' | 'modified' | 'deleted' | string;
+  type: 'post' | 'tag' | 'pool' | 'comment' | 'user' | string;
+  resourceId?: number | string;
+  user?: SzuruUser;
+  time: string;
+  data?: any;
 }
 
 export interface SzuruInstanceInfo {

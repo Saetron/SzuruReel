@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.2.0] - 2026-10-23
+
+### Added
+- **Full Client Feature Parity with official Szurubooru Client**:
+  - **Interactive Image Notes (`Note`)**:
+    - Draw, add, view, and delete bounding box annotation notes on images with tooltips.
+    - Toggle notes visibility on and off.
+  - **Pools / Collections View (`/pools`, `/pool/:id`)**:
+    - Browse pools with category filtering and search.
+    - Ordered gallery view of posts within a pool.
+    - Create new pools, edit pools, and delete pools.
+    - Show pool membership and previous/next navigation within pools on post details.
+  - **Global Comments Feed (`/comments`)**:
+    - Unified feed of recent comments across all booru posts with thumbnails, authors, timestamps, and comment voting (`+1` / `-1`).
+  - **Community Users Directory & Profiles (`/users`, `/user/:name`)**:
+    - Directory of contributors with rank badges (Regular, Power, Moderator, Administrator) and upload counts.
+    - User Profile modal displaying bio, registered date, and tabs for user's Uploads and user's Favorites.
+  - **System Snapshots & Activity Audit Log (`/snapshots`)**:
+    - View recent changes across posts, tags, pools, and comments with operation badges (created, modified, deleted) and author links.
+  - **Tag & Tag Category Management**:
+    - Create new tags, edit tag aliases, suggestions, and implications.
+    - Manage tag categories with custom colors and names.
+  - **Advanced Post Editing & Lifecycle**:
+    - Inline post editor for tags, safety rating, source URL, and relations.
+    - Delete post with confirmation.
+    - Merge post into another post ID (`/api/post-merge`).
+  - **Advanced Upload Capabilities**:
+    - Support for both local file upload and **Remote URL upload** (`contentUrl`).
+    - **Duplicate Image Detection**: Runs reverse image search (`/api/posts/from-image`) on file selection to alert if a duplicate or similar image already exists.
+    - Anonymous upload option.
+  - **Interactive Search Syntax Cheatsheet**:
+    - Full reference modal for query tokens, wildcard matching, safety, score ranges, dates, dimensions, uploaders, and pools.
+
+---
+
 ## [1.1.0] - 2026-10-23
 
 ### Changed
@@ -48,6 +83,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Drag-and-drop file uploader for videos and images with tagger, safety selector, and source URL attribution.
 - **Szurubooru API Client**:
   - Direct API connection and optional container-based CORS proxy mode (`/api/proxy`).
-- **Production Docker Deployment**:
-  - Multi-stage `Dockerfile` with Node 22 Alpine builder and minimal runtime runner.
-  - Preconfigured `docker-compose.yml`.
