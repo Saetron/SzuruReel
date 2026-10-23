@@ -14,6 +14,10 @@ services:
       # --- Szurubooru Connection Configuration ---
       # Base URL of your Szurubooru instance (no trailing slash)
       - SZURU_URL=https://booru.example.com
+      # Optional: Media/image upstream URL if distinct from API (e.g. if API is a backend port lacking static file routes)
+      # - SZURU_MEDIA_URL=https://booru.example.com
+      # Optional: Local mounted data directory (e.g. /data) for direct file streaming from storage
+      # - SZURU_DATA_DIR=/data
       # Route API requests through the container's built-in proxy (recommended: prevents browser CORS restrictions)
       - SZURU_USE_PROXY=true
       # Default safety filter for feed: all, safe, sketchy, unsafe

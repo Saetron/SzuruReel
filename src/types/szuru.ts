@@ -148,6 +148,7 @@ export interface UserSession {
 
 export interface AppConfig {
   instanceUrl: string;
+  mediaUrl?: string;
   username: string;
   apiToken: string;
   useProxy: boolean;
@@ -158,7 +159,9 @@ export interface AppConfig {
 
 export interface DockerServerConfig {
   instanceUrl: string;
+  mediaUrl?: string;
   useProxy: boolean;
+  hasDataDir?: boolean;
   defaultSafety: PostSafety | 'all';
   autoPlaySound: boolean;
   defaultSort: string;

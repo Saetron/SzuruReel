@@ -255,12 +255,18 @@ export const SzuruProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             setConfig((prev) => ({
               ...prev,
               instanceUrl: data.instanceUrl,
+              mediaUrl: data.mediaUrl,
               useProxy: data.useProxy ?? true,
               defaultSafety: data.defaultSafety || 'all',
               autoPlaySound: data.autoPlaySound || false,
               defaultSort: data.defaultSort || 'date-desc',
             }));
             setSafetyFilter(data.defaultSafety || 'all');
+          } else if (hasLocalConfig && data.mediaUrl) {
+            setConfig((prev) => ({
+              ...prev,
+              mediaUrl: data.mediaUrl,
+            }));
           }
         }
       })

@@ -42,6 +42,8 @@ Server-level and instance connection defaults are driven via Docker environment 
 | Variable | Description | Default |
 | :--- | :--- | :--- |
 | `SZURU_URL` | Base URL of target Szurubooru instance (no trailing slash) | `""` |
+| `SZURU_MEDIA_URL` | Optional upstream URL for media/images if distinct from API | `""` |
+| `SZURU_DATA_DIR` | Optional local mounted path for data directory (e.g. `/data`) | `""` |
 | `SZURU_USE_PROXY` | Proxy requests through container backend (`true`/`false`) | `true` |
 | `SZURU_DEFAULT_SAFETY` | Default safety rating (`all`, `safe`, `sketchy`, `unsafe`) | `all` |
 | `SZURU_AUTOPLAY_SOUND` | Default video audio playback (`false` = muted, `true` = unmuted) | `false` |

@@ -171,18 +171,18 @@ export class SzuruApiService {
       if (url.startsWith('http://') || url.startsWith('https://')) {
         return `/api/proxy?url=${encodeURIComponent(url)}`;
       }
-      const base = (this.config.instanceUrl || '').replace(/\/+$/, '');
+      const mediaBase = (this.config.mediaUrl || this.config.instanceUrl || '').replace(/\/+$/, '');
       const cleanPath = url.startsWith('/') ? url : `/${url}`;
-      const full = base ? `${base}${cleanPath}` : cleanPath;
+      const full = mediaBase ? `${mediaBase}${cleanPath}` : cleanPath;
       return `/api/proxy?url=${encodeURIComponent(full)}`;
     }
 
     if (url.startsWith('http://') || url.startsWith('https://')) {
       return url;
     }
-    const base = (this.config.instanceUrl || '').replace(/\/+$/, '');
+    const mediaBase = (this.config.mediaUrl || this.config.instanceUrl || '').replace(/\/+$/, '');
     const cleanPath = url.startsWith('/') ? url : `/${url}`;
-    return base ? `${base}${cleanPath}` : cleanPath;
+    return mediaBase ? `${mediaBase}${cleanPath}` : cleanPath;
   }
 
   private async request<T>(path: string, options: RequestInit = {}): Promise<T> {

@@ -12,6 +12,8 @@ const DIST_DIR = path.join(__dirname, 'dist');
 
 // Docker Environment Configuration (Instance-level; user auth is handled in WebUI for multi-user support)
 const SZURU_URL = (process.env.SZURU_URL || process.env.SZURU_API_URL || '').replace(/\/+$/, '');
+const SZURU_MEDIA_URL = (process.env.SZURU_MEDIA_URL || '').replace(/\/+$/, '');
+const SZURU_DATA_DIR = process.env.SZURU_DATA_DIR || (fs.existsSync('/data') ? '/data' : '');
 const SZURU_USE_PROXY = process.env.SZURU_USE_PROXY !== 'false'; // default true for docker networking/CORS
 const SZURU_DEFAULT_SAFETY = process.env.SZURU_DEFAULT_SAFETY || 'all';
 const SZURU_AUTOPLAY_SOUND = process.env.SZURU_AUTOPLAY_SOUND === 'true';
@@ -36,16 +38,112 @@ const MIME_TYPES = {
   '.ttf': 'font/ttf',
 };
 
+function findLocalDataFile(targetPath) {
+  if (!SZURU_DATA_DIR) return null;
+  const clean = targetPath.replace(/^\/+/, '');
+  // 1. Try direct: SZURU_DATA_DIR / clean
+  const p1 = path.join(SZURU_DATA_DIR, clean);
+  if (p1.startsWith(SZURU_DATA_DIR) && fs.existsSync(p1) && fs.statSync(p1).isFile()) {
+    return p1;
+  }
+  // 2. If clean starts with "data/", try without "data/"
+  if (clean.startsWith('data/')) {
+    const stripped = clean.slice(5);
+    const p2 = path.join(SZURU_DATA_DIR, stripped);
+    if (p2.startsWith(SZURU_DATA_DIR) && fs.existsSync(p2) && fs.statSync(p2).isFile()) {
+      return p2;
+    }
+  }
+  return null;
+}
+
+function serveFileWithRanges(filePath, req, res) {
+  fs.stat(filePath, (err, stats) => {
+    if (err || !stats.isFile()) {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('File Not Found');
+      return;
+    }
+
+    const ext = path.extname(filePath).toLowerCase();
+    const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+    const totalSize = stats.size;
+    const range = req.headers['range'];
+
+    const commonHeaders = {
+      'Access-Control-Allow-Origin': '*',
+      'Accept-Ranges': 'bytes',
+      'Content-Type': contentType,
+      'Cache-Control': 'public, max-age=31536000, immutable',
+      'Last-Modified': stats.mtime.toUTCString(),
+      'ETag': `"${stats.size.toString(16)}-${stats.mtime.getTime().toString(16)}"`,
+    };
+
+    if (range) {
+      const parts = range.replace(/bytes=/, '').split('-');
+      const start = parseInt(parts[0], 10);
+      const end = parts[1] ? parseInt(parts[1], 10) : totalSize - 1;
+
+      if (start >= totalSize || end >= totalSize || isNaN(start)) {
+        res.writeHead(416, {
+          ...commonHeaders,
+          'Content-Range': `bytes */${totalSize}`,
+        });
+        res.end();
+        return;
+      }
+
+      const chunkSize = end - start + 1;
+      res.writeHead(206, {
+        ...commonHeaders,
+        'Content-Range': `bytes ${start}-${end}/${totalSize}`,
+        'Content-Length': chunkSize,
+      });
+
+      const stream = fs.createReadStream(filePath, { start, end });
+      stream.pipe(res);
+    } else {
+      res.writeHead(200, {
+        ...commonHeaders,
+        'Content-Length': totalSize,
+      });
+
+      const stream = fs.createReadStream(filePath);
+      stream.pipe(res);
+    }
+  });
+}
+
 function proxyRequest(targetUrl, req, res) {
   try {
     const parsedTarget = new URL(targetUrl);
     const isHttps = parsedTarget.protocol === 'https:';
     const client = isHttps ? https : http;
 
+    const isMedia =
+      /\.(png|jpe?g|gif|webp|svg|ico|mp4|webm|mov|mkv)$/i.test(parsedTarget.pathname) ||
+      parsedTarget.pathname.includes('/data/') ||
+      parsedTarget.pathname.includes('/thumbnails/') ||
+      parsedTarget.pathname.includes('/avatars/');
+
+    // Check if local file exists on disk
+    if (isMedia && SZURU_DATA_DIR) {
+      const localFile = findLocalDataFile(parsedTarget.pathname);
+      if (localFile) {
+        serveFileWithRanges(localFile, req, res);
+        return;
+      }
+    }
+
     const forwardedHeaders = { ...req.headers };
     delete forwardedHeaders['host'];
     delete forwardedHeaders['connection'];
     forwardedHeaders['host'] = parsedTarget.host;
+
+    // For media requests, avoid forwarding restrictive JSON Accept headers
+    if (isMedia) {
+      forwardedHeaders['accept'] = '*/*';
+    }
 
     const proxyReq = client.request(
       targetUrl,
@@ -58,6 +156,13 @@ function proxyRequest(targetUrl, req, res) {
         responseHeaders['access-control-allow-origin'] = '*';
         responseHeaders['access-control-allow-headers'] = '*';
         responseHeaders['access-control-allow-methods'] = 'GET, POST, PUT, DELETE, OPTIONS';
+
+        if (isMedia) {
+          responseHeaders['accept-ranges'] = 'bytes';
+          if (!responseHeaders['cache-control']) {
+            responseHeaders['cache-control'] = 'public, max-age=31536000';
+          }
+        }
 
         res.writeHead(proxyRes.statusCode || 200, responseHeaders);
         proxyRes.pipe(res);
@@ -111,7 +216,9 @@ const server = http.createServer((req, res) => {
     res.end(
       JSON.stringify({
         instanceUrl: SZURU_URL,
+        mediaUrl: SZURU_MEDIA_URL,
         useProxy: SZURU_USE_PROXY,
+        hasDataDir: Boolean(SZURU_DATA_DIR),
         defaultSafety: SZURU_DEFAULT_SAFETY,
         autoPlaySound: SZURU_AUTOPLAY_SOUND,
         defaultSort: SZURU_DEFAULT_SORT,
@@ -134,13 +241,41 @@ const server = http.createServer((req, res) => {
       return;
     }
 
-    // If relative path given, prepend SZURU_URL
-    if (targetUrl.startsWith('/') && SZURU_URL) {
-      targetUrl = `${SZURU_URL}${targetUrl}`;
+    // If relative path given, prepend SZURU_MEDIA_URL or SZURU_URL
+    if (targetUrl.startsWith('/')) {
+      const base = SZURU_MEDIA_URL || SZURU_URL;
+      if (base) {
+        targetUrl = `${base}${targetUrl}`;
+      }
     }
 
     proxyRequest(targetUrl, req, res);
     return;
+  }
+
+  // Direct Media Proxy & Volume Serving Routes (like SzuruRelay: /data/*, /thumbnails/*, /generated-thumbnails/*, /avatars/*)
+  const isDirectMediaRoute =
+    pathname.startsWith('/data/') ||
+    pathname.startsWith('/thumbnails/') ||
+    pathname.startsWith('/generated-thumbnails/') ||
+    pathname.startsWith('/avatars/') ||
+    pathname.startsWith('/custom-content/');
+
+  if (isDirectMediaRoute) {
+    // 1. Try local file if volume is mounted
+    const localFile = findLocalDataFile(pathname);
+    if (localFile) {
+      serveFileWithRanges(localFile, req, res);
+      return;
+    }
+
+    // 2. Otherwise proxy to upstream media or instance URL
+    const upstreamBase = SZURU_MEDIA_URL || SZURU_URL;
+    if (upstreamBase) {
+      const targetUrl = `${upstreamBase}${pathname}${parsedUrl.search}`;
+      proxyRequest(targetUrl, req, res);
+      return;
+    }
   }
 
   // Static File Serving
